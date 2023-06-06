@@ -95,10 +95,10 @@ def get_hidden_states(encoded, num_tokens, model, layers):
     return word_tokens_output
 
 
-def get_word_vector(sent, tokenizer, model, num_tokens, layers=[-4, -3, -2, -1]):
+def get_word_vector(sent, tokenizer, model, num_tokens, device, layers=[-4, -3, -2, -1]):
     """Get a word vector by first tokenizing the input sentence, getting all token idxs
     that make up the word of interest, and then `get_hidden_states`."""
-    encoded = tokenizer.encode_plus(sent, return_tensors="pt")
+    encoded = tokenizer.encode_plus(sent, return_tensors="pt").to(device)
     
     return get_hidden_states(encoded, num_tokens, model, layers)
 
@@ -110,8 +110,10 @@ def write_embedding(f, embedding):
         f.write("%.4f" % num)
 
 def create_news_embeddings(data_dir, num_tokens_title):
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
     tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
-    model = AutoModel.from_pretrained('bert-base-uncased', output_hidden_states=True)
+    model = AutoModel.from_pretrained('bert-base-uncased', output_hidden_states=True).to(device)
     
     doc_id_dict = {}
 
@@ -140,7 +142,7 @@ def create_news_embeddings(data_dir, num_tokens_title):
                 
                 embeddings_doc_ids.append(doc_id)
                 # outputs: (no. of tokens in title, 768)
-                outputs = get_word_vector(title, tokenizer, model, num_tokens_title)
+                outputs = get_word_vector(title, tokenizer, model, num_tokens_title, device)
                 embeddings_list.append(outputs)
                 
                 #if len(doc_id_dict) == 100:
