@@ -28,7 +28,7 @@ def parse_args():
         type=str,
         default="../data/MINDsmall_dev",
     )
-    parser.add_argument("--model_dir", type=str, default='../model-v2')
+    parser.add_argument("--model_dir", type=str, default='../model')
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--npratio", type=int, default=4)
     parser.add_argument("--enable_gpu", type=utils.str2bool, default=True)
@@ -45,7 +45,8 @@ def parse_args():
     parser.add_argument("--word_embedding_dim", type=int, default=300)
     parser.add_argument("--glove_embedding_path", type=str, default='../data/glove.840B.300d.txt')
     parser.add_argument("--freeze_embedding", type=utils.str2bool, default=False)
-    parser.add_argument("--news_dim", type=int, default=768)  # 400
+    parser.add_argument("--bert_emb_dim", type=int, default=768)
+    parser.add_argument("--news_dim", type=int, default=400)
     parser.add_argument("--news_query_vector_dim", type=int, default=200)
     parser.add_argument("--user_query_vector_dim", type=int, default=200)
     parser.add_argument("--num_attention_heads", type=int, default=20)

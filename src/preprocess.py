@@ -123,7 +123,7 @@ def create_news_embeddings(data_dir):
 
 import torch
 
-def read_news_embeddings(data_dir, news_dim):    
+def read_news_embeddings(data_dir, bert_emb_dim):    
     embeddings_numpy_path = os.path.join(data_dir, "title_embeddings.npy")
     if os.path.exists(embeddings_numpy_path):
         return np.load(embeddings_numpy_path)
@@ -131,12 +131,12 @@ def read_news_embeddings(data_dir, news_dim):
         doc_id_dict = pickle.load(open(os.path.join(data_dir, 'doc_id_dict.pkl'), 'rb'))
         embeddings_path = os.path.join(data_dir, "title_embeddings.txt")
         
-        embeddings = read_embeddings_from_file(embeddings_path, doc_id_dict, news_dim)
+        embeddings = read_embeddings_from_file(embeddings_path, doc_id_dict, bert_emb_dim)
         np.save(embeddings_numpy_path, embeddings)
         return embeddings
 
 
-def read_embeddings_from_file(embeddings_path, doc_id_dict, news_dim):
+def read_embeddings_from_file(embeddings_path, doc_id_dict, bert_emb_dim):
     print(f"Reading data from {embeddings_path}")
     
     # Ref: https://stackoverflow.com/a/1019572/5552903
@@ -144,7 +144,7 @@ def read_embeddings_from_file(embeddings_path, doc_id_dict, news_dim):
         # First find out the number of lines in the file
         num_lines = sum(1 for _ in f)
         
-    embeddings = np.zeros((num_lines + 1, news_dim))        
+    embeddings = np.zeros((num_lines + 1, bert_emb_dim))        
     with open(embeddings_path, "r", encoding="utf-8") as f:
         for _, line in enumerate(tqdm(f)):
             embeddings_data = line.split("\t")

@@ -30,7 +30,9 @@ def train(rank, args):
         utils.setuplogger()
         dist.init_process_group('nccl', world_size=args.nGPU, init_method='env://', rank=rank)
 
-    #torch.cuda.set_device(rank)
+    if args.enable_gpu:
+        torch.cuda.set_device(rank)
+        
     # news: dict: key=doc_id, value=[cat, subcat]
     # news_index: dict: key=doc_id, value=idx (1-based)
     news, news_index, category_dict, subcategory_dict = read_news(
@@ -57,10 +59,14 @@ def train(rank, args):
     #    logging.info(f'Have words: {len(have_word)}')
     #    logging.info(f'Missing rate: {(len(word_dict) - len(have_word)) / len(word_dict)}')
     
-    embedding_matrix = read_news_embeddings(args.train_data_dir, args.news_dim)
-    assert embedding_matrix.shape == (len(news_title), args.news_dim)
+    embedding_matrix = read_news_embeddings(args.train_data_dir, args.bert_emb_dim)
+    assert embedding_matrix.shape == (len(news_title), args.bert_emb_dim)
     module = importlib.import_module(f'model.{args.model}')
     model = module.Model(args, embedding_matrix, len(category_dict), len(subcategory_dict))
+    
+    print("Model's state_dict:")
+    for param_tensor in model.state_dict():
+        print(param_tensor, "\t", model.state_dict()[param_tensor].size())
 
     if args.load_ckpt_name is not None:
         ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
@@ -115,7 +121,7 @@ def train(rank, args):
                 torch.save(
                     {
                         'model_state_dict':
-                            {'.'.join(k.split('.')[1:]): v for k, v in model.state_dict().items()}
+                            {'.'.join(k.split('.')[1:]): v for k, v in model.state_dict().items() if k != 'news_encoder.title_embeddings.weight'}
                             if is_distributed else model.state_dict(),
                         'category_dict': category_dict,
                         'subcategory_dict': subcategory_dict
@@ -129,7 +135,7 @@ def train(rank, args):
             torch.save(
                 {
                     'model_state_dict':
-                        {'.'.join(k.split('.')[1:]): v for k, v in model.state_dict().items()}
+                        {'.'.join(k.split('.')[1:]): v for k, v in model.state_dict().items() if k != 'news_encoder.title_embeddings.weight'}
                         if is_distributed else model.state_dict(),
                     'category_dict': category_dict,
                     'subcategory_dict': subcategory_dict,
@@ -148,7 +154,8 @@ def test(rank, args):
         utils.setuplogger()
         dist.init_process_group('nccl', world_size=args.nGPU, init_method='env://', rank=rank)
 
-    torch.cuda.set_device(rank)
+    if args.enable_gpu:
+        torch.cuda.set_device(rank)
 
     if args.load_ckpt_name is not None:
         ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
