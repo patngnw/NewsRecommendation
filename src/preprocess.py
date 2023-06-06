@@ -110,7 +110,7 @@ def write_embedding(f, embedding):
         f.write("%.4f" % num)
 
 def create_news_embeddings(data_dir, num_tokens_title):
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "cuda:0" if torch.cuda.is_available() else "cpu" 
 
     tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
     model = AutoModel.from_pretrained('bert-base-uncased', output_hidden_states=True).to(device)
