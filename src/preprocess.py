@@ -142,7 +142,7 @@ def create_news_embeddings(data_dir, num_tokens_title):
                 
                 embeddings_doc_ids.append(doc_id)
                 # outputs: (no. of tokens in title, 768)
-                outputs = get_word_vector(title, tokenizer, model, num_tokens_title, device)
+                outputs = get_word_vector(title, tokenizer, model, num_tokens_title, device).cpu()
                 embeddings_list.append(outputs)
                 
                 #if len(doc_id_dict) == 100:
