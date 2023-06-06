@@ -14,7 +14,7 @@ import subprocess
 
 import utils
 from parameters import parse_args
-from preprocess import read_news, get_doc_input
+from preprocess import read_news, get_doc_input, create_news_embeddings, read_news_embeddings
 from prepare_data import prepare_training_data, prepare_testing_data
 from dataset import DatasetTrain, DatasetTest, NewsDataset
 
@@ -30,26 +30,35 @@ def train(rank, args):
         utils.setuplogger()
         dist.init_process_group('nccl', world_size=args.nGPU, init_method='env://', rank=rank)
 
-    torch.cuda.set_device(rank)
-
-    news, news_index, category_dict, subcategory_dict, word_dict = read_news(
+    #torch.cuda.set_device(rank)
+    # news: dict: key=doc_id, value=[cat, subcat]
+    # news_index: dict: key=doc_id, value=idx (1-based)
+    news, news_index, category_dict, subcategory_dict = read_news(
         os.path.join(args.train_data_dir, 'news.tsv'), args, mode='train')
-
+    
+    # news_title: shape=(num_news+1, 1), value=idx of doc_id
+    # news_category: shape=(num_news+1, 1), value=idx of that news item's category
+    # news_subcategory: shape=(num_news+1, 1), value=idx of that news item's subcategory
     news_title, news_category, news_subcategory = get_doc_input(
-        news, news_index, category_dict, subcategory_dict, word_dict, args)
-    news_combined = np.concatenate([x for x in [news_title, news_category, news_subcategory] if x is not None], axis=-1)
+        news, news_index, category_dict, subcategory_dict, args)
+    
+    # news_combined: shape=(num_news+1, 3)
+    news_combined = np.concatenate([x for x in [news_title, news_category, news_subcategory] if x is not None], axis=-1)  # news_combined.shape: (51283, 22)
 
     if rank == 0:
         logging.info('Initializing word embedding matrix...')
-
-    embedding_matrix, have_word = utils.load_matrix(args.glove_embedding_path,
-                                                    word_dict,
-                                                    args.word_embedding_dim)
-    if rank == 0:
-        logging.info(f'Word dict length: {len(word_dict)}')
-        logging.info(f'Have words: {len(have_word)}')
-        logging.info(f'Missing rate: {(len(word_dict) - len(have_word)) / len(word_dict)}')
-
+        
+    # embedding_matrix: np.array, shape=(12507, 300); 12507 refers to the number of words found in news, and is equal to len(word_dict)
+    #embedding_matrix, have_word = utils.load_matrix(args.glove_embedding_path,
+    #                                                word_dict,  # dict: key=word (read from news), value=index
+    #                                                args.word_embedding_dim)
+    #if rank == 0:
+    #    logging.info(f'Word dict length: {len(word_dict)}')
+    #    logging.info(f'Have words: {len(have_word)}')
+    #    logging.info(f'Missing rate: {(len(word_dict) - len(have_word)) / len(word_dict)}')
+    
+    embedding_matrix = read_news_embeddings(args.train_data_dir, args.news_dim)
+    assert embedding_matrix.shape == (len(news_title), args.news_dim)
     module = importlib.import_module(f'model.{args.model}')
     model = module.Model(args, embedding_matrix, len(category_dict), len(subcategory_dict))
 
@@ -81,16 +90,16 @@ def train(rank, args):
     for ep in range(args.start_epoch, args.epochs):
         loss = 0.0
         accuary = 0.0
-        for cnt, (log_ids, log_mask, input_ids, targets) in enumerate(dataloader):
+        for cnt, (history, history_mask, candidate, label) in enumerate(dataloader):
             if args.enable_gpu:
-                log_ids = log_ids.cuda(rank, non_blocking=True)
-                log_mask = log_mask.cuda(rank, non_blocking=True)
-                input_ids = input_ids.cuda(rank, non_blocking=True)
-                targets = targets.cuda(rank, non_blocking=True)
+                history = history.cuda(rank, non_blocking=True)
+                history_mask = history_mask.cuda(rank, non_blocking=True)
+                candidate = candidate.cuda(rank, non_blocking=True)
+                label = label.cuda(rank, non_blocking=True)
 
-            bz_loss, y_hat = model(log_ids, log_mask, input_ids, targets)
+            bz_loss, y_hat = model(history, history_mask, candidate, label)
             loss += bz_loss.data.float()
-            accuary += utils.acc(targets, y_hat)
+            accuary += utils.acc(label, y_hat)
             optimizer.zero_grad()
             bz_loss.backward()
             optimizer.step()
@@ -109,7 +118,6 @@ def train(rank, args):
                             {'.'.join(k.split('.')[1:]): v for k, v in model.state_dict().items()}
                             if is_distributed else model.state_dict(),
                         'category_dict': category_dict,
-                        'word_dict': word_dict,
                         'subcategory_dict': subcategory_dict
                     }, ckpt_path)
                 logging.info(f"Model saved to {ckpt_path}.")
@@ -125,7 +133,6 @@ def train(rank, args):
                         if is_distributed else model.state_dict(),
                     'category_dict': category_dict,
                     'subcategory_dict': subcategory_dict,
-                    'word_dict': word_dict,
                 }, ckpt_path)
             logging.info(f"Model saved to {ckpt_path}.")
 
@@ -151,11 +158,10 @@ def test(rank, args):
 
     subcategory_dict = checkpoint['subcategory_dict']
     category_dict = checkpoint['category_dict']
-    word_dict = checkpoint['word_dict']
 
-    dummy_embedding_matrix = np.zeros((len(word_dict) + 1, args.word_embedding_dim))
+    embedding_matrix = read_news_embeddings(args.test_data_dir, args.news_dim)
     module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, dummy_embedding_matrix, len(category_dict), len(subcategory_dict))
+    model = module.Model(args, embedding_matrix, len(category_dict), len(subcategory_dict))
     model.load_state_dict(checkpoint['model_state_dict'])
     logging.info(f"Model loaded from {ckpt_path}")
 
@@ -167,7 +173,7 @@ def test(rank, args):
 
     news, news_index = read_news(os.path.join(args.test_data_dir, 'news.tsv'), args, mode='test')
     news_title, news_category, news_subcategory = get_doc_input(
-        news, news_index, category_dict, subcategory_dict, word_dict, args)
+        news, news_index, category_dict, subcategory_dict, args)
     news_combined = np.concatenate([x for x in [news_title, news_category, news_subcategory] if x is not None], axis=-1)
 
     news_dataset = NewsDataset(news_combined)
@@ -316,3 +322,10 @@ if __name__ == "__main__":
             test(None, args)
         else:
             torch.multiprocessing.spawn(test, nprocs=args.nGPU, args=(args,))
+            
+    if 'create_embeddings' == args.mode:
+        create_news_embeddings(args.test_data_dir)
+        create_news_embeddings(args.train_data_dir)
+        
+    if 'read_embeddings' == args.mode:
+        read_news_embeddings(args.train_data_dir, 101)

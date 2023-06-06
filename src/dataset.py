@@ -24,13 +24,20 @@ class DatasetTrain(IterableDataset):
         return pad_x, np.array(mask, dtype='float32')
 
     def line_mapper(self, line):
+        # line format:
+        # 0: Impression ID (ignored)
+        # 1: User ID (e.g. U397059)
+        # 2: Time
+        # 3: History of clicked news ordered by time (e.g. N106403 N71977 N97080 N102132 N97212 N121652)
+        # 4: News clicked in this impression (positive sample)
+        # 5: News not clicked in this impression (negative sample)
         line = line.strip().split('\t')
-        click_docs = line[3].split()
-        sess_pos = line[4].split()
-        sess_neg = line[5].split()
+        click_docs_history = line[3].split()
+        sess_pos = line[4].split()  # multiple
+        sess_neg = line[5].split()  # multiple
 
-        click_docs, log_mask = self.pad_to_fix_len(self.trans_to_nindex(click_docs), self.args.user_log_length)
-        user_feature = self.news_combined[click_docs]
+        click_docs_history, user_history_mask = self.pad_to_fix_len(self.trans_to_nindex(click_docs_history), self.args.user_log_length)
+        user_history_feature = self.news_combined[click_docs_history]
 
         pos = self.trans_to_nindex(sess_pos)
         neg = self.trans_to_nindex(sess_neg)
@@ -39,7 +46,7 @@ class DatasetTrain(IterableDataset):
         sample_news = neg[:label] + pos + neg[label:]
         news_feature = self.news_combined[sample_news]
 
-        return user_feature, log_mask, news_feature, label
+        return user_history_feature, user_history_mask, news_feature, label
 
     def __iter__(self):
         file_iter = open(self.filename)
