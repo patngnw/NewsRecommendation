@@ -10,11 +10,12 @@ class NewsEncoder(nn.Module):
         super(NewsEncoder, self).__init__()
         self.drop_rate = args.drop_rate
         self.num_words_title = args.num_words_title
+        self.word_embedding_dim = args.word_embedding_dim
         self.use_category = args.use_category
         self.use_subcategory = args.use_subcategory
         
         self.title_embeddings = embedding_matrix
-        self.title_shorten = nn.Linear(args.bert_emb_dim, args.news_dim)
+        #self.title_shorten = nn.Linear(args.bert_emb_dim, args.news_dim)
         
         if args.use_category:
             self.category_emb = nn.Embedding(num_category + 1, args.category_emb_dim, padding_idx=0)
@@ -24,13 +25,13 @@ class NewsEncoder(nn.Module):
             self.subcategory_dense = nn.Linear(args.category_emb_dim, args.news_dim)
         if args.use_category or args.use_subcategory:
             self.final_attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)
-        # self.cnn = nn.Conv1d(
-        #     in_channels=args.word_embedding_dim,
-        #     out_channels=args.news_dim,
-        #     kernel_size=3,
-        #     padding=1
-        # )
-        #self.attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)
+        self.cnn = nn.Conv1d(
+            in_channels=args.word_embedding_dim,
+            out_channels=args.news_dim,
+            kernel_size=3,
+            padding=1
+        )
+        self.attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)
 
     def forward(self, x, mask=None):
         '''
@@ -43,9 +44,17 @@ class NewsEncoder(nn.Module):
         #                       training=self.training)
         # context_word_vecs = self.cnn(word_vecs.transpose(1, 2)).transpose(1, 2)  # context_word_vecs.shape: (160, 20, 400)
         # title_vecs = self.attn(context_word_vecs, mask)  # title_vecs.shape: (160, 400)
+        
         start = 0
-        title_emb = self.title_embeddings(torch.narrow(x, -1, start, 1)).squeeze(dim=1)
-        title_vecs = self.title_shorten(title_emb)
+        title = torch.narrow(x, -1, start, 1).long()  # title.shape: 
+        title_emb_flat = self.title_embeddings(title).squeeze(dim=1)
+        title_emb = title_emb_flat.reshape((-1, self.num_words_title, self.word_embedding_dim))
+        word_vecs = F.dropout(title_emb,               # word_vecs: 160, 20, 768
+                              p=self.drop_rate,
+                              training=self.training)
+        context_word_vecs = self.cnn(word_vecs.transpose(1, 2)).transpose(1, 2)  # context_word_vecs.shape: (160, 20, 400)
+        title_vecs = self.attn(context_word_vecs, mask)  # title_vecs.shape: (160, 400)
+        
         all_vecs = [title_vecs]
         start += 1
         

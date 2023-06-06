@@ -59,8 +59,8 @@ def train(rank, args):
     #    logging.info(f'Have words: {len(have_word)}')
     #    logging.info(f'Missing rate: {(len(word_dict) - len(have_word)) / len(word_dict)}')
     
-    embedding_matrix = read_news_embeddings(args.train_data_dir, args.bert_emb_dim)
-    assert embedding_matrix.shape == (len(news_title), args.bert_emb_dim)
+    embedding_matrix = read_news_embeddings(args.train_data_dir)
+    #assert embedding_matrix.shape == (len(news_title), args.bert_emb_dim)
     module = importlib.import_module(f'model.{args.model}')
     model = module.Model(args, embedding_matrix, len(category_dict), len(subcategory_dict))
     
@@ -331,8 +331,8 @@ if __name__ == "__main__":
             torch.multiprocessing.spawn(test, nprocs=args.nGPU, args=(args,))
             
     if 'create_embeddings' == args.mode:
-        create_news_embeddings(args.test_data_dir)
-        create_news_embeddings(args.train_data_dir)
+        create_news_embeddings(args.train_data_dir, args.num_words_title)
+        create_news_embeddings(args.test_data_dir, args.num_words_title)
         
     if 'read_embeddings' == args.mode:
-        read_news_embeddings(args.train_data_dir, 101)
+        read_news_embeddings(args.train_data_dir)

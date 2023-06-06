@@ -1,7 +1,8 @@
 from collections import Counter
 from tqdm import tqdm
 import numpy as np
-from nltk.tokenize import word_tokenize
+#from nltk.tokenize import word_tokenize
+import torch
 
 
 def update_dict(dict, key, value=None):
@@ -76,6 +77,31 @@ import logging
 import os
 import pickle
 
+def get_hidden_states(encoded, num_tokens, model, layers):
+    """Push input IDs through model. Stack and sum `layers` (last four by default).
+    Select only those subword token outputs that belong to our word of interest
+    and average them."""
+    with torch.no_grad():
+        output = model(**encoded)
+
+    # Get all hidden states
+    states = output.hidden_states
+    # Stack and sum all requested layers
+    output = torch.stack([states[i] for i in layers]).sum(0).squeeze()
+    # Only select the tokens that constitute the requested word
+    output = output[1:-1]  # Take out [CLS] and [SEP]
+    word_tokens_output = output[:num_tokens]
+
+    return word_tokens_output
+
+
+def get_word_vector(sent, tokenizer, model, num_tokens, layers=[-4, -3, -2, -1]):
+    """Get a word vector by first tokenizing the input sentence, getting all token idxs
+    that make up the word of interest, and then `get_hidden_states`."""
+    encoded = tokenizer.encode_plus(sent, return_tensors="pt")
+    
+    return get_hidden_states(encoded, num_tokens, model, layers)
+
 def write_embedding(f, embedding):
     f.write("\t")
     for j, num in enumerate(embedding):
@@ -83,15 +109,22 @@ def write_embedding(f, embedding):
             f.write(",")
         f.write("%.4f" % num)
 
-def create_news_embeddings(data_dir):
+def create_news_embeddings(data_dir, num_tokens_title):
     tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
-    model = AutoModel.from_pretrained('bert-base-uncased')
+    model = AutoModel.from_pretrained('bert-base-uncased', output_hidden_states=True)
     
     doc_id_dict = {}
 
-    embeddings_path = os.path.join(data_dir, "title_embeddings.txt")
+    embeddings_path = os.path.join(data_dir, "title_embeddings.npy")
     news_path = os.path.join(data_dir, 'news.tsv')
     logging.info(f'Read from {news_path}\nWrite embeddings to {embeddings_path}\n')
+    
+    embeddings_list = []
+    embeddings_doc_ids = []
+    
+    # Add the info for the place holder for Unknown news
+    embeddings_list.append(torch.zeros((1, 768)))
+    embeddings_doc_ids.append('')
     
     with open(news_path, 'r', encoding='utf-8') as f_in:
         with open(embeddings_path, 'w') as f:
@@ -105,36 +138,37 @@ def create_news_embeddings(data_dir):
                 # padding_idx to 0
                 update_dict(doc_id_dict, doc_id)
                 
-                f.write(doc_id)
-                tokens = tokenizer(title, return_tensors="pt", max_length=200, truncation=True, padding=True)
-                outputs = model(**tokens)
-                write_embedding(f, outputs[0].tolist()[0][0])   
-                f.write('\n')
+                embeddings_doc_ids.append(doc_id)
+                # outputs: (no. of tokens in title, 768)
+                outputs = get_word_vector(title, tokenizer, model, num_tokens_title)
+                embeddings_list.append(outputs)
                 
-                #if len(doc_id_dict)>100:
-                #    print(f'embedding length: {len(outputs[0].tolist()[0][0])}')
+                #if len(doc_id_dict) == 100:
                 #    break
                 
+    nt = torch.nested.nested_tensor(embeddings_list)
+    embeddings_all = torch.nested.to_padded_tensor(nt, padding=0, output_size=(len(embeddings_list), num_tokens_title, 768))
+    embeddings_all = embeddings_all.numpy()
+    # Flatten the embeddings for each news item, so that we can use it in Torch Embeddings layer
+    embeddings_all = embeddings_all.reshape((embeddings_all.shape[0], -1))
+    np.save(embeddings_path, embeddings_all)
+
+    output_path = os.path.join(data_dir, 'embeddings_doc_ids.pkl')
+    logging.info(f'Writing embeddings_doc_ids to {output_path}')
+    with open(output_path, 'wb') as f:
+        pickle.dump(embeddings_doc_ids, f)
+    
     output_path = os.path.join(data_dir, 'doc_id_dict.pkl')
     logging.info(f'Writing doc_id_dict to {output_path}')
     with open(output_path, 'wb') as f:
         pickle.dump(doc_id_dict, f)
 
-
-import torch
-
-def read_news_embeddings(data_dir, bert_emb_dim):    
+def read_news_embeddings(data_dir):    
+    from torch import nn
     embeddings_numpy_path = os.path.join(data_dir, "title_embeddings.npy")
-    if os.path.exists(embeddings_numpy_path):
-        return np.load(embeddings_numpy_path)
-    else:
-        doc_id_dict = pickle.load(open(os.path.join(data_dir, 'doc_id_dict.pkl'), 'rb'))
-        embeddings_path = os.path.join(data_dir, "title_embeddings.txt")
-        
-        embeddings = read_embeddings_from_file(embeddings_path, doc_id_dict, bert_emb_dim)
-        np.save(embeddings_numpy_path, embeddings)
-        return embeddings
-
+    embeddings = np.load(embeddings_numpy_path)
+    
+    return embeddings
 
 def read_embeddings_from_file(embeddings_path, doc_id_dict, bert_emb_dim):
     print(f"Reading data from {embeddings_path}")
