@@ -106,8 +106,8 @@ def train(rank, args):
 
             if cnt % args.log_steps == 0:
                 logging.info(
-                    '[{}] Ed: {}, train_loss: {:.5f}, acc: {:.5f}'.format(
-                        rank, cnt * args.batch_size, loss.data / cnt, accuary / cnt)
+                    '[{}][{}] Ed: {}, train_loss: {:.5f}, acc: {:.5f}'.format(
+                        ep, rank, cnt * args.batch_size, loss.data / cnt, accuary / cnt)
                 )
 
             if rank == 0 and cnt != 0 and cnt % args.save_steps == 0:
