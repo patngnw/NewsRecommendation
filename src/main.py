@@ -15,7 +15,7 @@ import subprocess
 import utils
 from parameters import parse_args
 from preprocess import read_news, get_doc_input
-from prepare_data import prepare_training_data, prepare_testing_data
+from prepare_data import prepare_training_data, prepare_testing_data, generate_bpemb_embeddings
 from dataset import DatasetTrain, DatasetTest, NewsDataset
 
 
@@ -30,7 +30,8 @@ def train(rank, args):
         utils.setuplogger()
         dist.init_process_group('nccl', world_size=args.nGPU, init_method='env://', rank=rank)
 
-    torch.cuda.set_device(rank)
+    if args.enable_gpu:
+        torch.cuda.set_device(rank)
 
     news, news_index, category_dict, subcategory_dict, word_dict = read_news(
         os.path.join(args.train_data_dir, 'news.tsv'), args, mode='train')
@@ -42,7 +43,7 @@ def train(rank, args):
     if rank == 0:
         logging.info('Initializing word embedding matrix...')
 
-    embedding_matrix, have_word = utils.load_matrix(args.glove_embedding_path,
+    embedding_matrix, have_word = utils.load_matrix(args.bpemb_embedding_path,
                                                     word_dict,
                                                     args.word_embedding_dim)
     if rank == 0:
@@ -316,3 +317,6 @@ if __name__ == "__main__":
             test(None, args)
         else:
             torch.multiprocessing.spawn(test, nprocs=args.nGPU, args=(args,))
+            
+    if args.mode == 'create_embeddings':
+        generate_bpemb_embeddings(args.bpemb_embedding_path)

@@ -2,6 +2,7 @@ import os
 from tqdm import tqdm
 import random
 import logging
+from bpemb import BPEmb
 
 
 def get_sample(all_elements, num_sample):
@@ -64,3 +65,15 @@ def prepare_testing_data(test_data_dir, nGPU):
             f.writelines(behaviors[i])
 
     return sum([len(x) for x in behaviors])
+
+
+def generate_bpemb_embeddings(embedding_path):
+    logging.info(f'Writing embedding txt to {embedding_path}')
+    multibpemb = BPEmb(lang="multi", vs=320000, dim=300)
+    with open(embedding_path, "w") as f:
+        for word, vector in tqdm(zip(multibpemb.words, multibpemb.vectors)):
+            line = [word]
+            line.extend([str(v) for v in vector])
+            f.write(' '.join(line))
+            f.write('\n')
+                    

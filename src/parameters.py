@@ -15,7 +15,7 @@ def parse_args():
     parser.add_argument("--mode",
                         type=str,
                         default="train",
-                        choices=['train', 'test', 'train_test'])
+                        choices=['train', 'test', 'train_test', 'create_embeddings'])
     parser.add_argument(
         "--train_data_dir",
         type=str,
@@ -42,6 +42,7 @@ def parse_args():
     parser.add_argument("--user_log_length", type=int, default=50)
     parser.add_argument("--word_embedding_dim", type=int, default=300)
     parser.add_argument("--glove_embedding_path", type=str, default='../data/glove.840B.300d.txt')
+    parser.add_argument("--bpemb_embedding_path", type=str, default='../data/bpemb.320K.300d.txt')
     parser.add_argument("--freeze_embedding", type=utils.str2bool, default=False)
     parser.add_argument("--news_dim", type=int, default=400)
     parser.add_argument("--news_query_vector_dim", type=int, default=200)
