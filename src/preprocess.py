@@ -5,7 +5,6 @@ import numpy as np
 import torch
 import gzip
 
-
 def update_dict(dict, key, value=None):
     if key not in dict:
         if value is None:
@@ -111,6 +110,64 @@ def write_embedding(f, embedding):
         f.write("%.4f" % num)
 
 def create_news_embeddings(data_dir, num_tokens_title):
+    from bpemb import BPEmb
+    
+    # https://github.com/bheinzerling/bpemb
+    multibpemb = BPEmb(lang="multi", vs=320000, dim=300)
+
+    doc_id_dict = {}
+
+    embeddings_path = os.path.join(data_dir, "title_embeddings.bpemb.npy.gz")
+    news_path = os.path.join(data_dir, 'news.tsv')
+    logging.info(f'Read from {news_path}\nWrite embeddings to {embeddings_path}\n')
+    
+    embeddings_list = []
+    embeddings_doc_ids = []
+    
+    # Add the info for the place holder for Unknown news
+    embeddings_list.append(torch.zeros((num_tokens_title, 300)))
+    embeddings_doc_ids.append('')
+    
+    with open(news_path, 'r', encoding='utf-8') as f_in:
+        with open(embeddings_path, 'w') as f:
+            for line in tqdm(f_in):
+                splited = line.strip('\n').split('\t')
+                doc_id, category, subcategory, title, abstract, url, _, _ = splited
+                
+                # Note:
+                # The first doc_id will get an index of 1.
+                # We reserve index 0 for unknown news, and when we create nn.Embedding, we will set num_embeddings to num_news+1, and 
+                # padding_idx to 0
+                update_dict(doc_id_dict, doc_id)
+                
+                embeddings_doc_ids.append(doc_id)
+                
+                # outputs: shape = (no. of tokens in title, 300)
+                outputs = multibpemb.embed(title)[:num_tokens_title]
+                outputs = np.pad(outputs, ((0, num_tokens_title - outputs.shape[0]), (0, 0)), mode='constant')
+                embeddings_list.append(outputs)
+                
+                if False:
+                    if len(embeddings_list) == 50:
+                        break
+                
+    embeddings_all = np.stack(embeddings_list)
+    # Flatten the embeddings for each news item, so that we can use it in Torch Embeddings layer
+    embeddings_all = embeddings_all.reshape((embeddings_all.shape[0], -1))
+    with gzip.GzipFile(embeddings_path, "w") as f:
+        np.save(f, embeddings_all)
+
+    output_path = os.path.join(data_dir, 'embeddings_doc_ids.pkl')
+    logging.info(f'Writing embeddings_doc_ids to {output_path}')
+    with open(output_path, 'wb') as f:
+        pickle.dump(embeddings_doc_ids, f)
+    
+    output_path = os.path.join(data_dir, 'doc_id_dict.pkl')
+    logging.info(f'Writing doc_id_dict to {output_path}')
+    with open(output_path, 'wb') as f:
+        pickle.dump(doc_id_dict, f)
+
+def create_news_embeddings_bert(data_dir, num_tokens_title):
     device = "cuda:0" if torch.cuda.is_available() else "cpu" 
 
     tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
@@ -118,7 +175,7 @@ def create_news_embeddings(data_dir, num_tokens_title):
     
     doc_id_dict = {}
 
-    embeddings_path = os.path.join(data_dir, "title_embeddings.npy.gz")
+    embeddings_path = os.path.join(data_dir, "title_embeddings.bert.npy.gz")
     news_path = os.path.join(data_dir, 'news.tsv')
     logging.info(f'Read from {news_path}\nWrite embeddings to {embeddings_path}\n')
     
@@ -168,7 +225,14 @@ def create_news_embeddings(data_dir, num_tokens_title):
         pickle.dump(doc_id_dict, f)
 
 def read_news_embeddings(data_dir):    
-    embeddings_numpy_path = os.path.join(data_dir, "title_embeddings.npy.gz")
+    embeddings_numpy_path = os.path.join(data_dir, "title_embeddings.bpemb.npy.gz")
+    with gzip.GzipFile(embeddings_numpy_path, "r") as f:
+        embeddings = np.load(f)
+    
+    return embeddings
+
+def read_news_embeddings_bert(data_dir):    
+    embeddings_numpy_path = os.path.join(data_dir, "title_embeddings.bert.npy.gz")
     with gzip.GzipFile(embeddings_numpy_path, "r") as f:
         embeddings = np.load(f)
     

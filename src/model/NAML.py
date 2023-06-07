@@ -15,7 +15,6 @@ class NewsEncoder(nn.Module):
         self.use_subcategory = args.use_subcategory
         
         self.title_embeddings = embedding_matrix
-        #self.title_shorten = nn.Linear(args.bert_emb_dim, args.news_dim)
         
         if args.use_category:
             self.category_emb = nn.Embedding(num_category + 1, args.category_emb_dim, padding_idx=0)
@@ -46,9 +45,9 @@ class NewsEncoder(nn.Module):
         # title_vecs = self.attn(context_word_vecs, mask)  # title_vecs.shape: (160, 400)
         
         start = 0
-        title = torch.narrow(x, -1, start, 1).long()  # title.shape: 
-        title_emb_flat = self.title_embeddings(title).squeeze(dim=1)
-        title_emb = title_emb_flat.reshape((-1, self.num_words_title, self.word_embedding_dim))
+        title = torch.narrow(x, -1, start, 1).long()  # x: (160, 3), title: (160, 1)
+        title_emb_flat = self.title_embeddings(title).squeeze(dim=1)  # title_emb_flat: (160, 15360)
+        title_emb = title_emb_flat.reshape((-1, self.num_words_title, self.word_embedding_dim))  # title_emb: (160, 20, 768)
         word_vecs = F.dropout(title_emb,               # word_vecs: 160, 20, 768
                               p=self.drop_rate,
                               training=self.training)
