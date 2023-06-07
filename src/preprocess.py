@@ -3,6 +3,7 @@ from tqdm import tqdm
 import numpy as np
 #from nltk.tokenize import word_tokenize
 import torch
+import gzip
 
 
 def update_dict(dict, key, value=None):
@@ -117,7 +118,7 @@ def create_news_embeddings(data_dir, num_tokens_title):
     
     doc_id_dict = {}
 
-    embeddings_path = os.path.join(data_dir, "title_embeddings.npy")
+    embeddings_path = os.path.join(data_dir, "title_embeddings.npy.gz")
     news_path = os.path.join(data_dir, 'news.tsv')
     logging.info(f'Read from {news_path}\nWrite embeddings to {embeddings_path}\n')
     
@@ -153,7 +154,8 @@ def create_news_embeddings(data_dir, num_tokens_title):
     embeddings_all = embeddings_all.numpy()
     # Flatten the embeddings for each news item, so that we can use it in Torch Embeddings layer
     embeddings_all = embeddings_all.reshape((embeddings_all.shape[0], -1))
-    np.save(embeddings_path, embeddings_all)
+    with gzip.GzipFile(embeddings_path, "w") as f:
+        np.save(f, embeddings_all)
 
     output_path = os.path.join(data_dir, 'embeddings_doc_ids.pkl')
     logging.info(f'Writing embeddings_doc_ids to {output_path}')
@@ -166,30 +168,8 @@ def create_news_embeddings(data_dir, num_tokens_title):
         pickle.dump(doc_id_dict, f)
 
 def read_news_embeddings(data_dir):    
-    from torch import nn
-    embeddings_numpy_path = os.path.join(data_dir, "title_embeddings.npy")
-    embeddings = np.load(embeddings_numpy_path)
+    embeddings_numpy_path = os.path.join(data_dir, "title_embeddings.npy.gz")
+    with gzip.GzipFile(embeddings_numpy_path, "r") as f:
+        embeddings = np.load(f)
     
     return embeddings
-
-def read_embeddings_from_file(embeddings_path, doc_id_dict, bert_emb_dim):
-    print(f"Reading data from {embeddings_path}")
-    
-    # Ref: https://stackoverflow.com/a/1019572/5552903
-    with open(embeddings_path, "rbU") as f:
-        # First find out the number of lines in the file
-        num_lines = sum(1 for _ in f)
-        
-    embeddings = np.zeros((num_lines + 1, bert_emb_dim))        
-    with open(embeddings_path, "r", encoding="utf-8") as f:
-        for _, line in enumerate(tqdm(f)):
-            embeddings_data = line.split("\t")
-            doc_id = embeddings_data[0]
-            title_embedding = [ float(i) for i in embeddings_data[1].split(",") ]
-            news_index = doc_id_dict[doc_id]
-            embeddings[news_index] = title_embedding
-    
-    return embeddings
-
-            
-
