@@ -1,10 +1,10 @@
 from pathlib import Path
-import pathlib
 import pandas as pd
 import sys
 import os
-import yaml
 import numpy as np
+import logging
+
 
 connector_dir = Path("/opt/nwdata/data-playground/connector/src")
 sys.path.append(str(connector_dir))
@@ -77,8 +77,11 @@ def get_behaviors_df(df_impressions, df_reads):
     df_with_hist_all = pd.concat(df_with_hist_list)
     
     df_res = pd.merge(df_wide, df_with_hist_all[['time', 'user_id', 'history']], on=['time', 'user_id'], how='left')
-    df_res['history'] = df_res['history'].fillna('')
     
+    # Drop duplicates for the same day
+    df_res['date'] = df_res.time.str.slice(0, 10).astype(str)
+    df_res = df_res.drop_duplicates(['date', 'user_id', 'history', 'impression'])
+    df_res['history'] = df_res['history'].fillna('')
     df_res = df_res.sort_values(['time']).reset_index()
     
     return df_res
@@ -111,27 +114,41 @@ WHERE tid in ({tids_str})
         
     df_tids_info = pd.concat(df_list)
     return df_tids_info
+
+
+_behaviors_tsv = 'behaviors.tsv'
+_behaviors_header = ['user_id', 'time', 'history', 'impression']
+_news_tsv = 'news.tsv'
+_news_header = ['tid', 'forum', 'subcat', 'subject', 'abstract', 'url', 'title_entities', 'abstract_entities']
+
+def gen_discuss_data(data_dir, nrows=None):
+    data_dir = Path(data_dir)
     
-    
-def gen_discuss_data():
-    nrows = None
-    print('Generating data for behaviors.tsv')
-    df_impressions, tids_impressions = get_impressions_long_df(_src_dir / '../data/discuss/discuss-rs-tids.csv', nrows=nrows)
-    df_reads, tids_reads = get_reads(_src_dir / '../data/discuss/discuss-rs-reads.csv', nrows=nrows)
+    logging.info('Generating data for behaviors.tsv')
+    df_impressions, tids_impressions = get_impressions_long_df(data_dir / 'discuss-rs-tids.csv', nrows=nrows)
+    df_reads, tids_reads = get_reads(data_dir / 'discuss-rs-reads.csv', nrows=nrows)
+
+    output_dir = data_dir
+    if nrows:
+        output_dir = output_dir / f'nrows_{nrows}'
+        
+    os.makedirs(output_dir, exist_ok=True)
+    logging.info(f'Outputdir = {output_dir}')
+        
     df_with_hist = get_behaviors_df(df_impressions, df_reads)    
-    df_with_hist[['user_id', 'time', 'history', 'impression']].to_csv(_src_dir / '../data/discuss/behaviors.tsv', sep='\t', 
-                                                                      index=True, 
+    df_with_hist[_behaviors_header].to_csv(output_dir / _behaviors_tsv, sep='\t', 
+                                                                      index=True,   # Need the Impression ID
                                                                       header=None)
     
-    print('Generating data for news.tsv')
+    logging.info('Generating data for news.tsv')
     
-    print('Saving involved tids to tids_all.csv')
+    logging.info('Saving involved tids to tids_all.csv')
     tids_all = sorted(list(set(tids_impressions.tolist()).union(set(tids_reads.tolist()))))
-    pd.DataFrame({'tid': tids_all}).to_csv(_src_dir / '../data/discuss/tids_all.csv', index=False)
-    
-    print('Saving tids info to tids_info.csv')
+    pd.DataFrame({'tid': tids_all}).to_csv(output_dir / 'tids_all.csv', index=False)
+
+    logging.info('Saving tids info to tids_info.csv')
     df_tids_info = get_tids_info(tids_all)
-    df_tids_info.to_csv(_src_dir / '../data/discuss/tids_info.csv', index=False, encoding='utf-8')
+    df_tids_info.to_csv(output_dir / 'tids_info.csv', index=False, encoding='utf-8')
 
     # Save to news.tsv
     df_tids_info['subcat'] = ''
@@ -139,9 +156,54 @@ def gen_discuss_data():
     df_tids_info['url'] = ''
     df_tids_info['title_entities'] = ''
     df_tids_info['abstract_entities'] = ''
-    df_tids_info[['tid', 'forum', 'subcat', 'subject', 'abstract', 'url', 'title_entities', 'abstract_entities']]\
-        .to_csv(_src_dir / '../data/discuss/news.tsv', sep='\t', index=True, header=None, encoding='utf-8')
+    df_tids_info[_news_header].to_csv(output_dir / _news_tsv, sep='\t', index=False, header=None, encoding='utf-8')
+
+
+def get_seen_tids(df_behavior):
+    tids_all = set()
+    for _, row in df_behavior.iterrows():
+        history = row['history']
+        if pd.isna(history):
+            history = []
+        else:
+            history = history.split()
+            
+        impression = [x.split('-')[0] for x in row['impression'].split()]
         
+        history.extend(impression)
+        tids = [int(x) for x in history]
+        tids_all.update(tids)
         
-if __name__ == "__main__":
-    gen_discuss_data()
+    return sorted(list(tids_all))
+        
+
+def split_data(start_date, test_date, data_dir, train_data_dir, test_data_dir):
+    assert test_date > start_date
+    data_dir = Path(data_dir)
+    train_data_dir = Path(train_data_dir)
+    os.makedirs(train_data_dir, exist_ok=True)
+    test_data_dir = Path(test_data_dir)
+    os.makedirs(test_data_dir, exist_ok=True)
+    
+    df_behaviors = pd.read_csv(data_dir / _behaviors_tsv, delimiter='\t', names=['id'] + _behaviors_header)
+    df_behaviors['date'] = df_behaviors.time.str.slice(0, 10).astype(str)
+    
+    output_path = train_data_dir / _behaviors_tsv
+    logging.info(f'Writing to {output_path}')
+    df_behaviors_train = df_behaviors.loc[(df_behaviors.date >= start_date) & (df_behaviors.date < test_date)]
+    df_behaviors_train[_behaviors_header].to_csv(output_path, sep='\t', index=True, header=None, encoding='utf-8')
+    
+    output_path = test_data_dir / _behaviors_tsv
+    logging.info(f'Writing to {output_path}')
+    df_behaviors_test = df_behaviors.loc[df_behaviors.date == test_date]
+    df_behaviors_test[_behaviors_header].to_csv(output_path, sep='\t', index=True, header=None, encoding='utf-8')
+
+    df_news_all = pd.read_csv(data_dir / _news_tsv, delimiter='\t', names=_news_header, dtype={'tid': int})
+    
+    for df, output_dir in zip([df_behaviors_train, df_behaviors_test], [train_data_dir, test_data_dir]):
+        tids = get_seen_tids(df)
+        df_news = df_news_all.loc[df_news_all.tid.isin(tids)]
+        
+        output_path = output_dir / _news_tsv
+        logging.info(f'Writing to {output_path}')
+        df_news[_news_header].to_csv(output_path, sep='\t', index=False, header=None, encoding='utf-8')

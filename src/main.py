@@ -16,6 +16,7 @@ import utils
 from parameters import parse_args
 from preprocess import read_news, get_doc_input
 from prepare_data import prepare_training_data, prepare_testing_data, generate_bpemb_embeddings
+from discuss_utils import gen_discuss_data, split_data
 from dataset import DatasetTrain, DatasetTest, NewsDataset
 
 
@@ -333,3 +334,9 @@ if __name__ == "__main__":
             
     if args.mode == 'create_embeddings':
         generate_bpemb_embeddings(args.bpemb_embedding_path)
+        
+    if args.mode == 'gen_discuss_data':
+        gen_discuss_data(args.data_dir, nrows=args.nrows)
+        
+    if args.mode == 'split_data':
+        split_data(args.start_date, args.test_date, args.data_dir, args.train_data_dir, args.test_data_dir)

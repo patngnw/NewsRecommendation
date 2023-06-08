@@ -15,16 +15,19 @@ def parse_args():
     parser.add_argument("--mode",
                         type=str,
                         default="train",
-                        choices=['train', 'test', 'train_test', 'create_embeddings'])
+                        choices=['train', 'test', 'train_test', 
+                                 'create_embeddings',
+                                 'gen_discuss_data',
+                                 'split_data'])
     parser.add_argument(
         "--train_data_dir",
         type=str,
-        default="../data/MINDsmall_train",
+        default="../data/Forum_train",
     )
     parser.add_argument(
         "--test_data_dir",
         type=str,
-        default="../data/MINDsmall_dev",
+        default="../data/Forum_dev",
     )
     parser.add_argument("--model_dir", type=str, default='../model')
     parser.add_argument("--batch_size", type=int, default=32)
@@ -58,8 +61,10 @@ def parse_args():
     parser.add_argument("--category_emb_dim", type=int, default=100)
     parser.add_argument("--show_news_doc_sim", type=utils.str2bool, default=False)
     
-    parser.add_argument("--impressions_path", type=str, default='../data/discuss/discuss-rs-tids.csv')
-    parser.add_argument("--reads_path", type=str, default='../data/discuss/discuss-rs-reads.csv')
+    parser.add_argument("--data_dir", type=str, default='../data/discuss')
+    parser.add_argument("--nrows", type=int, default=None)
+    parser.add_argument("--start_date", type=str, default=None)
+    parser.add_argument("--test_date", type=str, default=None)
 
 
     args = parser.parse_args()
