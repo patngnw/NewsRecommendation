@@ -113,6 +113,7 @@ WHERE tid in ({tids_str})
         df_list.append(df)
         
     df_tids_info = pd.concat(df_list)
+    df_tids_info['subject'] = df_tids_info['subject'].str.replace('\t', ' ', regex=False)
     return df_tids_info
 
 
@@ -200,6 +201,7 @@ def split_data(start_date, test_date, data_dir, train_data_dir, test_data_dir):
 
     df_news_all = pd.read_csv(data_dir / _news_tsv, delimiter='\t', names=_news_header, dtype={'tid': int})
     
+    logging.info('Splitting the news...')
     for df, output_dir in zip([df_behaviors_train, df_behaviors_test], [train_data_dir, test_data_dir]):
         tids = get_seen_tids(df)
         df_news = df_news_all.loc[df_news_all.tid.isin(tids)]
