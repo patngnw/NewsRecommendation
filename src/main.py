@@ -142,7 +142,8 @@ def test(rank, args):
         utils.setuplogger()
         dist.init_process_group('nccl', world_size=args.nGPU, init_method='env://', rank=rank)
 
-    torch.cuda.set_device(rank)
+    if args.enable_gpu:
+        torch.cuda.set_device(rank)
 
     if args.load_ckpt_name is not None:
         ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
@@ -166,34 +167,41 @@ def test(rank, args):
     model.eval()
     torch.set_grad_enabled(False)
 
+    # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, subcat ]
+    # news_index = {}  # Dict: key=news_id, value=idx
     news, news_index = read_news(os.path.join(args.test_data_dir, 'news.tsv'), args, mode='test')
+    
+    # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, subcat ]
+    # category_dict = {}  # Dict: key=cat_name, value=idx
+    # subcategory_dict = {}  # Dict: key=subcat_name, value=idx
     news_title, news_category, news_subcategory = get_doc_input(
         news, news_index, category_dict, subcategory_dict, word_dict, args)
     news_combined = np.concatenate([x for x in [news_title, news_category, news_subcategory] if x is not None], axis=-1)
 
-    news_dataset = NewsDataset(news_combined)
+    news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 1 + 1) (e.g. )
     news_dataloader = DataLoader(news_dataset,
                                  batch_size=args.batch_size,
                                  num_workers=4)
 
-    news_scoring = []
+    test_news_vecs = []
     with torch.no_grad():
         for input_ids in tqdm(news_dataloader):
-            input_ids = input_ids.cuda(rank)
-            news_vec = model.news_encoder(input_ids)
-            news_vec = news_vec.to(torch.device("cpu")).detach().numpy()
-            news_scoring.extend(news_vec)
+            if args.enable_gpu:
+                input_ids = input_ids.cuda(rank)
+            candidate_news_vec = model.news_encoder(input_ids)
+            candidate_news_vec = candidate_news_vec.to(torch.device("cpu")).detach().numpy()
+            test_news_vecs.extend(candidate_news_vec)  # news_vec: (128, 400)
 
-    news_scoring = np.array(news_scoring)
-    logging.info("news scoring num: {}".format(news_scoring.shape[0]))
+    test_news_vecs = np.array(test_news_vecs)  # shape:  (num_of_news, 400)
+    logging.info("news scoring num: {}".format(test_news_vecs.shape[0]))
 
-    if rank == 0:
+    if args.show_news_doc_sim and rank == 0:
         doc_sim = 0
         for _ in tqdm(range(1000000)):
-            i = random.randrange(1, len(news_scoring))
-            j = random.randrange(1, len(news_scoring))
+            i = random.randrange(1, len(test_news_vecs))
+            j = random.randrange(1, len(test_news_vecs))
             if i != j:
-                doc_sim += np.dot(news_scoring[i], news_scoring[j]) / (np.linalg.norm(news_scoring[i]) * np.linalg.norm(news_scoring[j]))
+                doc_sim += np.dot(test_news_vecs[i], test_news_vecs[j]) / (np.linalg.norm(test_news_vecs[i]) * np.linalg.norm(test_news_vecs[j]))
         logging.info(f'News doc-sim: {doc_sim / 1000000}')
 
     data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv')
@@ -205,7 +213,7 @@ def test(rank, args):
         labels = [x[3] for x in tuple_list]
         return (log_vecs, log_mask, news_vecs, labels)
 
-    dataset = DatasetTest(data_file_path, news_index, news_scoring, args)
+    dataset = DatasetTest(data_file_path, news_index, test_news_vecs, args)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
 
     from metrics import roc_auc_score, ndcg_score, mrr_score
@@ -225,8 +233,12 @@ def test(rank, args):
         return [np.array(i).sum() for i in arr]
 
     local_sample_num = 0
-
-    for cnt, (log_vecs, log_mask, news_vecs, labels) in enumerate(dataloader):
+    
+    # log_vecs: user feature based on clicked doc history
+    # log_mask: log_vecs are padded; log_mask tells which items are padded (0) or not (1)
+    # candidate_news_vecs: vectors (from news_encoder) of all candidate news (from that sample row)
+    # labels: whether the candidate news is clicked or not
+    for cnt, (log_vecs, log_mask, candidate_news_vecs, labels) in enumerate(dataloader):
         local_sample_num += log_vecs.shape[0]
 
         if args.enable_gpu:
@@ -235,11 +247,11 @@ def test(rank, args):
 
         user_vecs = model.user_encoder(log_vecs, log_mask).to(torch.device("cpu")).detach().numpy()
 
-        for user_vec, news_vec, label in zip(user_vecs, news_vecs, labels):
+        for user_vec, candidate_news_vec, label in zip(user_vecs, candidate_news_vecs, labels):
             if label.mean() == 0 or label.mean() == 1:
                 continue
 
-            score = np.dot(news_vec, user_vec)
+            score = np.dot(candidate_news_vec, user_vec)  # candidate_news_vec: (22, 400); user_vec: (400,); score: (22,)
 
             auc = roc_auc_score(label, score)
             mrr = mrr_score(label, score)
@@ -263,6 +275,7 @@ def test(rank, args):
         if rank == 0:
             print_metrics('*', local_sample_num, local_metrics_sum / local_sample_num)
     else:
+        print('Metrics: AUC, MRR, nDCG5, nDCG10')
         print_metrics('*', local_sample_num, get_mean([AUC, MRR, nDCG5, nDCG10]))
 
 

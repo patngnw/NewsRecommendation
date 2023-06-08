@@ -56,6 +56,11 @@ def parse_args():
     parser.add_argument("--use_category", type=utils.str2bool, default=False)
     parser.add_argument("--use_subcategory", type=utils.str2bool, default=False)
     parser.add_argument("--category_emb_dim", type=int, default=100)
+    parser.add_argument("--show_news_doc_sim", type=utils.str2bool, default=False)
+    
+    parser.add_argument("--impressions_path", type=str, default='../data/discuss/discuss-rs-tids.csv')
+    parser.add_argument("--reads_path", type=str, default='../data/discuss/discuss-rs-reads.csv')
+
 
     args = parser.parse_args()
     return args

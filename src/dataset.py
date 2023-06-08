@@ -47,22 +47,22 @@ class DatasetTrain(IterableDataset):
 
 
 class DatasetTest(DatasetTrain):
-    def __init__(self, filename, news_index, news_scoring, args):
+    def __init__(self, filename, news_index, news_vecs, args):
         super(DatasetTrain).__init__()
         self.filename = filename
         self.news_index = news_index
-        self.news_scoring = news_scoring
+        self.news_vecs = news_vecs
         self.args = args
 
     def line_mapper(self, line):
         line = line.strip().split('\t')
         click_docs = line[3].split()
-        click_docs, log_mask = self.pad_to_fix_len(self.trans_to_nindex(click_docs), self.args.user_log_length)
-        user_feature = self.news_scoring[click_docs]
+        click_docs, log_mask = self.pad_to_fix_len(self.trans_to_nindex(click_docs), self.args.user_log_length)  # len: user_log_length (50)
+        user_feature = self.news_vecs[click_docs]  # shape: (50, 400)
 
-        candidate_news = self.trans_to_nindex([i.split('-')[0] for i in line[4].split()])
-        labels = np.array([int(i.split('-')[1]) for i in line[4].split()])
-        news_feature = self.news_scoring[candidate_news]
+        candidate_news = self.trans_to_nindex([i.split('-')[0] for i in line[4].split()])  # len: impression_size (e.g. 22)
+        labels = np.array([int(i.split('-')[1]) for i in line[4].split()])  # len: impression_size (e.g. 22), value: 0 or 1
+        news_feature = self.news_vecs[candidate_news]
 
         return user_feature, log_mask, news_feature, labels
 

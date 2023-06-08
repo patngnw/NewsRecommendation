@@ -1,0 +1,23 @@
+Splunk for impressions:
+index=tracking_discuss fdth "tr_act=fdth" tids earliest=04/28/2023:00:00:00 latest=05/09/2023:00:00:00
+| `nwTrackingGetNwtc` | search nwtc!="-"
+| `nwTrackingGetUid` | eval uid=if(uid=="deleted" or uid=="-", "", uid) | fillnull uid value=""
+| eval user_id = if(uid=="", nwtc, uid)
+| `qarg(tr_so)` | rename tr_so as so
+| eval uid=if(uid=="deleted", "-", uid)| `qarg(tr_des)`
+| rex field=tr_des "tids_(?<tids>[_\d]+)"
+| eval time = strftime(_time, "%Y-%m-%d %H:%M:%S")
+| table time,user_id, nwtc, uid, so, tids
+
+Splunk for reads:
+index=tracking_discuss vt "tr_act=vt" ("tr_so=a" OR "tr_so=i") 
+earliest=04/28/2023:00:00:00 latest=05/09/2023:00:00:00
+| `nwTrackingGetNwtc` | search nwtc!="-"
+| `nwTrackingGetUid` | eval uid=if(uid=="deleted" or uid=="-", "", uid) | fillnull uid value=""
+| eval user_id = if(uid=="", nwtc, uid)
+| `qarg(tr_so)` | rename tr_so as so
+| `qarg(tr_tid)` | rename tr_tid as tid
+| eval uid=if(uid=="deleted", "-", uid)| `qarg(tr_des)`
+| eval time = strftime(_time, "%Y-%m-%d %H:%M:%S")
+| table time, user_id, nwtc, uid, so, tid
+

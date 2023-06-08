@@ -31,8 +31,8 @@ class NewsEncoder(nn.Module):
 
     def forward(self, x, mask=None):
         '''
-            x: batch_size, word_num
-            mask: batch_size, word_num
+            x: batch_size, word_num + 2
+            mask: batch_size, word_num + 2
         '''
         title = torch.narrow(x, -1, 0, self.num_words_title).long()
         word_vecs = F.dropout(self.embedding_matrix(title),
@@ -58,7 +58,7 @@ class NewsEncoder(nn.Module):
         else:
             all_vecs = torch.stack(all_vecs, dim=1)
             news_vecs = self.final_attn(all_vecs)
-        return news_vecs
+        return news_vecs  # shape: 128, 400
 
 
 class UserEncoder(nn.Module):
