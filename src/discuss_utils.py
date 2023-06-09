@@ -277,4 +277,21 @@ def split_dev_behaviors(train_data_dir, test_data_dir):
     df_test.loc[df_test.user_id.isin(unseen_user_ids)].to_csv(output_path, sep="\t", index=False, header=None, encoding='utf-8')
     
     
+def regen_test_dev_news_tsv_for_authorid(base_data_dir, data_dir):
+    base_data_dir = Path(base_data_dir)
+    data_dir = Path(data_dir)
     
+    df_tids_info = pd.read_csv(base_data_dir / _tids_info_csv)
+    
+    df_tids_info['subcat'] = df_tids_info['authorid']
+    df_tids_info['abstract'] = ''
+    df_tids_info['url'] = ''
+    df_tids_info['title_entities'] = ''
+    df_tids_info['abstract_entities'] = ''
+
+    df_seen_tids = pd.read_csv(data_dir / _seen_tids_csv)
+    
+    output_path = data_dir / _news_tsv
+    logging.info(f'Writing to {output_path}')    
+    df_tids_info.loc[df_tids_info.tid.isin(df_seen_tids.tid) , _news_header]\
+        .to_csv(output_path, sep='\t', index=False, header=None, encoding='utf-8')

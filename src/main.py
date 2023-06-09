@@ -110,8 +110,8 @@ def train(rank, args):
 
             if cnt % args.log_steps == 0:
                 logging.info(
-                    '[{}] Ed: {}, train_loss: {:.5f}, acc: {:.5f}'.format(
-                        rank, cnt * args.batch_size, loss.data / cnt, accuary / cnt)
+                    '[{}][{}] Ed: {}, train_loss: {:.5f}, acc: {:.5f}'.format(
+                        rank, ep, cnt * args.batch_size, loss.data / cnt, accuary / cnt)
                 )
 
             if rank == 0 and cnt != 0 and cnt % args.save_steps == 0:
@@ -424,7 +424,11 @@ if __name__ == "__main__":
         split_data(args.start_date, args.test_date, args.data_dir, args.train_data_dir, args.test_data_dir)
         
     elif args.mode == 'ad_hoc':
-        from discuss_utils import save_seen_tids, regen_test_dev_news_tsv, split_dev_behaviors
+        from discuss_utils import save_seen_tids, regen_test_dev_news_tsv, split_dev_behaviors, regen_test_dev_news_tsv_for_authorid
         #regen_test_dev_news_tsv(args.data_dir, args.train_data_dir)
         #regen_test_dev_news_tsv(args.data_dir, args.test_data_dir)
-        split_dev_behaviors(args.train_data_dir, args.test_data_dir)
+        
+        #split_dev_behaviors(args.train_data_dir, args.test_data_dir)
+        
+        regen_test_dev_news_tsv_for_authorid(args.data_dir, args.train_data_dir)
+        regen_test_dev_news_tsv_for_authorid(args.data_dir, args.test_data_dir)

@@ -74,7 +74,11 @@ def parse_args():
     parser.add_argument("--jitao_topn", type=int, default=5)
     parser.add_argument("--jitao_boost", type=float, default=3.5)
     parser.add_argument("--test_users", type=str, choices=['all', 'seen', 'unseen'], default='all')
-
+    parser.add_argument("--use_authorid", type=utils.str2bool, default=False)
 
     args = parser.parse_args()
+    if args.use_authorid:
+        args.model_dir = args.model_dir + '_authorid'
+        args.use_subcategory = True
+        
     return args
