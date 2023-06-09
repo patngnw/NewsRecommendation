@@ -75,7 +75,9 @@ def load_matrix(embedding_file_path, word_dict, word_embedding_dim):
             if len(line) == 0:
                 break
             line = line.split()
-            word = line[0].decode()
+            word = line[0]
+            if type(word) != str:
+                word = word.decode()
             if word in word_dict:
                 index = word_dict[word]
                 tp = [float(x) for x in line[1:]]

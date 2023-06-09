@@ -66,6 +66,8 @@ def parse_args():
     parser.add_argument("--nrows", type=int, default=None)
     parser.add_argument("--start_date", type=str, default=None)
     parser.add_argument("--test_date", type=str, default=None)
+    parser.add_argument("--skip_count_sample", type=utils.str2bool, default=False)
+
 
 
     args = parser.parse_args()

@@ -295,17 +295,20 @@ if __name__ == "__main__":
             logging.info('Preparing training data...')
             total_sample_num = prepare_training_data(args.train_data_dir, args.nGPU, args.npratio, args.seed)
         else:
-            total_sample_num = 0
-            for i in range(args.nGPU):
-                data_file_path = os.path.join(args.train_data_dir, f'behaviors_np{args.npratio}_{i}.tsv.gz')
-                if not os.path.exists(data_file_path):
-                    logging.error(f'Splited training data {data_file_path} for GPU {i} does not exist. Please set the parameter --prepare as True and rerun the code.')
-                    exit()
-                if data_file_path.endswith('.gz'):
-                    result = subprocess.getoutput(f'zcat {data_file_path} | wc -l')
-                else:               
-                    result = subprocess.getoutput(f'wc -l {data_file_path}')
-                total_sample_num += int(result.split(' ')[0])
+            if args.skip_count_sample:
+                total_sample_num = -1
+            else:
+                total_sample_num = 0
+                for i in range(args.nGPU):
+                    data_file_path = os.path.join(args.train_data_dir, f'behaviors_np{args.npratio}_{i}.tsv.gz')
+                    if not os.path.exists(data_file_path):
+                        logging.error(f'Splited training data {data_file_path} for GPU {i} does not exist. Please set the parameter --prepare as True and rerun the code.')
+                        exit()
+                    if data_file_path.endswith('.gz'):
+                        result = subprocess.getoutput(f'zcat {data_file_path} | wc -l')
+                    else:               
+                        result = subprocess.getoutput(f'wc -l {data_file_path}')
+                    total_sample_num += int(result.split(' ')[0])
             logging.info('Skip training data preparation.')
         logging.info(f'{total_sample_num} training samples, {total_sample_num // args.batch_size // args.nGPU} batches in total.')
 
@@ -319,17 +322,20 @@ if __name__ == "__main__":
             logging.info('Preparing testing data...')
             total_sample_num = prepare_testing_data(args.test_data_dir, args.nGPU)
         else:
-            total_sample_num = 0
-            for i in range(args.nGPU):
-                data_file_path = os.path.join(args.test_data_dir, f'behaviors_{i}.tsv.gz')
-                if not os.path.exists(data_file_path):
-                    logging.error(f'Splited testing data {data_file_path} for GPU {i} does not exist. Please set the parameter --prepare as True and rerun the code.')
-                    exit()
-                if data_file_path.endswith('.gz'):
-                    result = subprocess.getoutput(f'zcat {data_file_path} | wc -l')
-                else:               
-                    result = subprocess.getoutput(f'wc -l {data_file_path}')
-                total_sample_num += int(result.split(' ')[0])
+            if args.skip_count_sample:
+                total_sample_num = -1
+            else:
+                total_sample_num = 0
+                for i in range(args.nGPU):
+                    data_file_path = os.path.join(args.test_data_dir, f'behaviors_{i}.tsv.gz')
+                    if not os.path.exists(data_file_path):
+                        logging.error(f'Splited testing data {data_file_path} for GPU {i} does not exist. Please set the parameter --prepare as True and rerun the code.')
+                        exit()
+                    if data_file_path.endswith('.gz'):
+                        result = subprocess.getoutput(f'zcat {data_file_path} | wc -l')
+                    else:               
+                        result = subprocess.getoutput(f'wc -l {data_file_path}')
+                    total_sample_num += int(result.split(' ')[0])
             logging.info('Skip testing data preparation.')
         logging.info(f'{total_sample_num} testing samples in total.')
 
