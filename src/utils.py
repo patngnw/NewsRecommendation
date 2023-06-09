@@ -4,6 +4,7 @@ import sys
 import torch
 import numpy as np
 import argparse
+import gzip
 
 
 def str2bool(v):
@@ -65,18 +66,22 @@ def load_matrix(embedding_file_path, word_dict, word_embedding_dim):
     embedding_matrix = np.zeros(shape=(len(word_dict) + 1, word_embedding_dim))
     have_word = []
     if embedding_file_path is not None:
-        with open(embedding_file_path, 'rb') as f:
-            while True:
-                line = f.readline()
-                if len(line) == 0:
-                    break
-                line = line.split()
-                word = line[0].decode()
-                if word in word_dict:
-                    index = word_dict[word]
-                    tp = [float(x) for x in line[1:]]
-                    embedding_matrix[index] = np.array(tp)
-                    have_word.append(word)
+        if embedding_file_path.endswith('.gz'):
+            f = gzip.open(embedding_file_path, 'rt', encoding='utf-8')
+        else:
+            f = open(embedding_file_path, 'rb')
+        while True:
+            line = f.readline()
+            if len(line) == 0:
+                break
+            line = line.split()
+            word = line[0].decode()
+            if word in word_dict:
+                index = word_dict[word]
+                tp = [float(x) for x in line[1:]]
+                embedding_matrix[index] = np.array(tp)
+                have_word.append(word)
+        f.close()
     return embedding_matrix, have_word
 
 
