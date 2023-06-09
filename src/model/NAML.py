@@ -24,7 +24,7 @@ class NewsEncoder(nn.Module):
         self.cnn = nn.Conv1d(
             in_channels=args.word_embedding_dim,
             out_channels=args.news_dim,
-            kernel_size=3,
+            kernel_size=args.conv1d_kernel_size,
             padding=1
         )
         self.attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)

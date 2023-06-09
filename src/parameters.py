@@ -74,6 +74,7 @@ def parse_args():
     parser.add_argument("--jitao_topn", type=int, default=5)
     parser.add_argument("--jitao_boost", type=float, default=3.5)
     parser.add_argument("--test_users", type=str, choices=['all', 'seen', 'unseen'], default='all')
+    parser.add_argument("--conv1d_kernel_size", type=int, default=3)
 
     args = parser.parse_args()
     if args.use_authorid:
