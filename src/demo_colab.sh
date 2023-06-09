@@ -6,7 +6,7 @@ model_dir='../model/NAML'
 model='NAML'
 use_category=True
 use_subcategory=False
-enable_gpu=False
+enable_gpu=True
 
 if [ ${mode} == train ]
 then
