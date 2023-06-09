@@ -45,12 +45,12 @@ def train(rank, args):
     if args.enable_gpu:
         torch.cuda.set_device(rank)
 
-    news, news_index, category_dict, subcategory_dict, word_dict = read_news(
+    news, news_index, category_dict, authorid_dict, word_dict = read_news(
         os.path.join(args.train_data_dir, 'news.tsv'), args, mode='train')
 
-    news_title, news_category, news_subcategory = get_doc_input(
-        news, news_index, category_dict, subcategory_dict, word_dict, args)
-    news_combined = np.concatenate([x for x in [news_title, news_category, news_subcategory] if x is not None], axis=-1)
+    news_title, news_category, news_authorid = get_doc_input(
+        news, news_index, category_dict, authorid_dict, word_dict, args)
+    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid] if x is not None], axis=-1)
 
     if rank == 0:
         logging.info('Initializing word embedding matrix...')
@@ -64,7 +64,7 @@ def train(rank, args):
         logging.info(f'Missing rate: {(len(word_dict) - len(have_word)) / len(word_dict)}')
 
     module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, embedding_matrix, len(category_dict), len(subcategory_dict))
+    model = module.Model(args, embedding_matrix, len(category_dict), len(authorid_dict))
 
     if args.load_ckpt_name is not None:
         ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
@@ -123,7 +123,7 @@ def train(rank, args):
                             if is_distributed else model.state_dict(),
                         'category_dict': category_dict,
                         'word_dict': word_dict,
-                        'subcategory_dict': subcategory_dict
+                        'authorid_dict': authorid_dict
                     }, ckpt_path)
                 logging.info(f"Model saved to {ckpt_path}.")
 
@@ -137,7 +137,7 @@ def train(rank, args):
                         {'.'.join(k.split('.')[1:]): v for k, v in model.state_dict().items()}
                         if is_distributed else model.state_dict(),
                     'category_dict': category_dict,
-                    'subcategory_dict': subcategory_dict,
+                    'authorid_dict': authorid_dict,
                     'word_dict': word_dict,
                 }, ckpt_path)
             logging.info(f"Model saved to {ckpt_path}.")
@@ -172,13 +172,13 @@ def test(rank, args):
     assert ckpt_path is not None, 'No checkpoint found.'
     checkpoint = torch.load(ckpt_path, map_location='cpu')
 
-    subcategory_dict = checkpoint['subcategory_dict']
+    authorid_dict = checkpoint['authorid_dict']
     category_dict = checkpoint['category_dict']
     word_dict = checkpoint['word_dict']
 
     dummy_embedding_matrix = np.zeros((len(word_dict) + 1, args.word_embedding_dim))
     module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, dummy_embedding_matrix, len(category_dict), len(subcategory_dict))
+    model = module.Model(args, dummy_embedding_matrix, len(category_dict), len(authorid_dict))
     model.load_state_dict(checkpoint['model_state_dict'])
     logging.info(f"Model loaded from {ckpt_path}")
 
@@ -188,16 +188,16 @@ def test(rank, args):
     model.eval()
     torch.set_grad_enabled(False)
 
-    # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, subcat ]
+    # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, authorid ]
     # news_index = {}  # Dict: key=news_id, value=idx
     news, news_index = read_news(os.path.join(args.test_data_dir, 'news.tsv'), args, mode='test')
     
-    # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, subcat ]
+    # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, authorid ]
     # category_dict = {}  # Dict: key=cat_name, value=idx
-    # subcategory_dict = {}  # Dict: key=subcat_name, value=idx
-    news_title, news_category, news_subcategory = get_doc_input(
-        news, news_index, category_dict, subcategory_dict, word_dict, args)
-    news_combined = np.concatenate([x for x in [news_title, news_category, news_subcategory] if x is not None], axis=-1)
+    # authorid_dict = {}  # Dict: key=authorid, value=idx
+    news_title, news_category, news_authorid = get_doc_input(
+        news, news_index, category_dict, authorid_dict, word_dict, args)
+    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid] if x is not None], axis=-1)
 
     news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 1 + 1) (e.g. )
     news_dataloader = DataLoader(news_dataset,
