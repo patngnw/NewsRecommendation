@@ -191,12 +191,12 @@ def split_data(start_date, test_date, data_dir, train_data_dir, test_data_dir):
     df_behaviors = pd.read_csv(data_dir / _behaviors_tsv, delimiter='\t', names=['id'] + _behaviors_header)
     df_behaviors['date'] = df_behaviors.time.str.slice(0, 10).astype(str)
     
-    output_path = train_data_dir / _behaviors_tsv
+    output_path = train_data_dir / _behaviors_tsv + '.gz'
     logging.info(f'Writing to {output_path}')
     df_behaviors_train = df_behaviors.loc[(df_behaviors.date >= start_date) & (df_behaviors.date < test_date)]
     df_behaviors_train[_behaviors_header].to_csv(output_path, sep='\t', index=True, header=None, encoding='utf-8')
     
-    output_path = test_data_dir / _behaviors_tsv
+    output_path = test_data_dir / _behaviors_tsv + '.gz'
     logging.info(f'Writing to {output_path}')
     df_behaviors_test = df_behaviors.loc[df_behaviors.date == test_date]
     df_behaviors_test[_behaviors_header].to_csv(output_path, sep='\t', index=True, header=None, encoding='utf-8')
@@ -245,7 +245,36 @@ def regen_test_dev_news_tsv(base_data_dir, data_dir):
     logging.info(f'Writing to {output_path}')    
     df_tids_info.loc[df_tids_info.tid.isin(df_seen_tids.tid) , _news_header]\
         .to_csv(output_path, sep='\t', index=False, header=None, encoding='utf-8')
+        
+        
+def split_dev_behaviors(train_data_dir, test_data_dir):
+    train_data_dir = Path(train_data_dir)
+    test_data_dir = Path(test_data_dir)
+    
+    input_path = train_data_dir / 'behaviors_np4_0.tsv.gz'
+    logging.info(f'Reading {input_path}')
+    df_train = pd.read_csv(input_path, sep='\t', names=['id'] + _behaviors_header + ['dummy'])
+    
+    input_path = test_data_dir / 'behaviors_0.tsv.gz'
+    logging.info(f'Reading {input_path}')
+    df_test = pd.read_csv(input_path, sep='\t', names=['id'] + _behaviors_header)
+    
+    train_user_ids = set(df_train.user_id.unique())
+    test_user_ids = set(df_test.user_id.unique())
+    
+    logging.info(f'Size of test_user_ids = {len(test_user_ids)}')
 
+    output_path = test_data_dir / 'behaviors_0.seen_users.tsv.gz'
+    logging.info(f'Writing to {output_path}')  
+    seen_user_ids = test_user_ids.intersection(train_user_ids) 
+    logging.info(f'Size of seen_user_ids = {len(seen_user_ids)}')
+    df_test.loc[df_test.user_id.isin(seen_user_ids)].to_csv(output_path, sep="\t", index=False, header=None, encoding='utf-8')
+    
+    output_path = test_data_dir / 'behaviors_0.unseen_users.tsv.gz'
+    logging.info(f'Writing to {output_path}')  
+    unseen_user_ids = test_user_ids.difference(train_user_ids) 
+    logging.info(f'Size of unseen_user_ids = {len(unseen_user_ids)}')
+    df_test.loc[df_test.user_id.isin(unseen_user_ids)].to_csv(output_path, sep="\t", index=False, header=None, encoding='utf-8')
     
     
     

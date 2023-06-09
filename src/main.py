@@ -217,6 +217,12 @@ def test(rank, args):
         logging.info(f'News doc-sim: {doc_sim / 1000000}')
 
     data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv.gz')
+    if args.test_users == 'seen':
+        data_file_path = data_file_path.replace('.tsv', '.seen_users.tsv')
+    elif args.test_users == 'unseen':
+        data_file_path = data_file_path.replace('.tsv', '.unseen_users.tsv')
+        
+    logging.info(f'Behavior file: {data_file_path}')
 
     def collate_fn(tuple_list):
         log_vecs = torch.FloatTensor(np.array([x[0] for x in tuple_list]))
@@ -412,6 +418,7 @@ if __name__ == "__main__":
         split_data(args.start_date, args.test_date, args.data_dir, args.train_data_dir, args.test_data_dir)
         
     elif args.mode == 'ad_hoc':
-        from discuss_utils import save_seen_tids, regen_test_dev_news_tsv
-        regen_test_dev_news_tsv(args.data_dir, args.train_data_dir)
-        regen_test_dev_news_tsv(args.data_dir, args.test_data_dir)
+        from discuss_utils import save_seen_tids, regen_test_dev_news_tsv, split_dev_behaviors
+        #regen_test_dev_news_tsv(args.data_dir, args.train_data_dir)
+        #regen_test_dev_news_tsv(args.data_dir, args.test_data_dir)
+        split_dev_behaviors(args.train_data_dir, args.test_data_dir)

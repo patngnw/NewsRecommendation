@@ -73,6 +73,7 @@ def parse_args():
     parser.add_argument("--jitao_score_method", type=utils.str2bool, default=True)
     parser.add_argument("--jitao_topn", type=int, default=5)
     parser.add_argument("--jitao_boost", type=float, default=3.5)
+    parser.add_argument("--test_users", type=str, choices=['all', 'seen', 'unseen'], default='all')
 
 
     args = parser.parse_args()
