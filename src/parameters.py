@@ -68,7 +68,11 @@ def parse_args():
     parser.add_argument("--start_date", type=str, default=None)
     parser.add_argument("--test_date", type=str, default=None)
     parser.add_argument("--skip_count_sample", type=utils.str2bool, default=False)
-
+    
+    # alternate scoring
+    parser.add_argument("--jitao_score_method", type=utils.str2bool, default=True)
+    parser.add_argument("--jitao_topn", type=int, default=5)
+    parser.add_argument("--jitao_boost", type=float, default=3.5)
 
 
     args = parser.parse_args()

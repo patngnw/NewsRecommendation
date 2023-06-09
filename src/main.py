@@ -219,8 +219,8 @@ def test(rank, args):
     data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv.gz')
 
     def collate_fn(tuple_list):
-        log_vecs = torch.FloatTensor([x[0] for x in tuple_list])
-        log_mask = torch.FloatTensor([x[1] for x in tuple_list])
+        log_vecs = torch.FloatTensor(np.array([x[0] for x in tuple_list]))
+        log_mask = torch.FloatTensor(np.array([x[1] for x in tuple_list]))
         news_vecs = [x[2] for x in tuple_list]
         labels = [x[3] for x in tuple_list]
         return (log_vecs, log_mask, news_vecs, labels)
@@ -252,7 +252,14 @@ def test(rank, args):
             if label.mean() == 0 or label.mean() == 1:
                 continue
 
-            score = np.dot(candidate_news_vec, user_vec)  # candidate_news_vec: (22, 400); user_vec: (400,); score: (22,)
+            score = np.dot(candidate_news_vec, user_vec)  # candidate_news_vec: (20, 400); user_vec: (400,); score: (20,)
+            if args.jitao_score_method:
+                score_sorted_idx = np.flip(np.argsort(score))  # Idx of item if we sort it in desc order
+                score_by_candidate_news = list(range(candidate_news_vec.shape[0], 0, -1))
+                for idx in score_sorted_idx[:args.jitao_topn]:
+                    score_by_candidate_news[idx] += args.jitao_boost
+                    
+                score = score_by_candidate_news
 
             auc = roc_auc_score(label, score)
             mrr = mrr_score(label, score)

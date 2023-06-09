@@ -21,17 +21,38 @@ earliest=04/28/2023:00:00:00 latest=05/09/2023:00:00:00
 | eval time = strftime(_time, "%Y-%m-%d %H:%M:%S")
 | table time, user_id, nwtc, uid, so, tid
 
+[INFO 2023-06-09 12:25:46,836] [0] local_sample_num: 66697
 
 Baseline (with NO modification):
-[INFO 2023-06-09 12:25:46,836] [0] local_sample_num: 66697
 Metrics:                                          AUC,  MRR,    nDCG5,  nDCG10
 [INFO 2023-06-09 12:25:46,846] [*] 66697 samples: 66.88 29.56   44.97   53.37
 
-[INFO 2023-06-09 12:38:28,734] Model loaded from ../model/NAML/epoch-1-40000.pt
-Metrics:                                          AUC,  MRR,    nDCG5,  nDCG10
-[INFO 2023-06-09 12:41:48,468] [*] 66697 samples: 69.12 30.71   46.99   55.58
-
-
 [INFO 2023-06-09 12:38:28,734] Model loaded from ../model/NAML/epoch-1.pt
-Metrics:                                          AUC,  MRR,    nDCG5,  nDCG10
 [INFO 2023-06-09 12:51:41,025] [*] 66697 samples: 69.25 30.64   46.77   55.55
+
+3.5, 5, epoch-1.pt
+[INFO 2023-06-09 13:18:29,175] [*] 66697 samples: 69.34 31.55   48.33   56.35
+
+3.5, 10, epoch-1.pt
+[INFO 2023-06-09 13:33:33,115] [*] 66697 samples: 69.42 31.30   48.18   56.18
+
+5.5, 5, epoch-1.pt
+[INFO 2023-06-09 13:48:13,919] [*] 66697 samples: 70.34 31.87   49.23   57.26
+
+6.5, 5, epoch-1.pt
+[INFO 2023-06-09 13:50:23,383] [*] 66697 samples: 70.71 31.93   49.52   57.56
+
+6.5, 5, epoch-3.pt
+[INFO 2023-06-09 14:43:27,992] [*] 66697 samples: 71.08 32.19   50.04   58.04
+
+8.5, 5, epoch-3.pt
+[INFO 2023-06-09 14:50:50,213] [*] 66697 samples: 71.70 32.31   50.50   58.58
+
+8.5, 7, epoch-3.pt
+[INFO 2023-06-09 14:52:50,190] [*] 66697 samples: 71.85 32.04   50.17   58.46
+
+9.5, 5, epoch-3.pt ***
+[INFO 2023-06-09 14:54:56,381] [*] 66697 samples: 71.89 32.31   50.63   58.77
+
+9.5, 5, epoch-4-20000.pt
+[INFO 2023-06-09 14:57:26,313] [*] 66697 samples: 71.89 32.30   50.62   58.78
