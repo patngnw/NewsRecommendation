@@ -11,6 +11,7 @@ import random
 from torch.utils.data import DataLoader
 import importlib
 import subprocess
+from metrics import roc_auc_score, ndcg_score, mrr_score
 
 import utils
 from parameters import parse_args
@@ -18,6 +19,16 @@ from preprocess import read_news, get_doc_input
 from prepare_data import prepare_training_data, prepare_testing_data, generate_bpemb_embeddings
 from discuss_utils import gen_discuss_data, split_data
 from dataset import DatasetTrain, DatasetTest, NewsDataset
+
+
+def get_mean(arr):
+    return [np.array(i).mean() for i in arr]
+
+def get_sum(arr):
+    return [np.array(i).sum() for i in arr]
+
+def print_metrics(rank, cnt, x):
+    logging.info("[{}] {} samples: {}".format(rank, cnt, '\t'.join(["{:0.2f}".format(i * 100) for i in x])))
 
 
 def train(rank, args):
@@ -217,21 +228,10 @@ def test(rank, args):
     dataset = DatasetTest(data_file_path, news_index, test_news_vecs, args)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
 
-    from metrics import roc_auc_score, ndcg_score, mrr_score
-
     AUC = []
     MRR = []
     nDCG5 = []
     nDCG10 = []
-
-    def print_metrics(rank, cnt, x):
-        logging.info("[{}] {} samples: {}".format(rank, cnt, '\t'.join(["{:0.2f}".format(i * 100) for i in x])))
-
-    def get_mean(arr):
-        return [np.array(i).mean() for i in arr]
-
-    def get_sum(arr):
-        return [np.array(i).sum() for i in arr]
 
     local_sample_num = 0
     
@@ -280,6 +280,54 @@ def test(rank, args):
         print_metrics('*', local_sample_num, get_mean([AUC, MRR, nDCG5, nDCG10]))
 
 
+def test_baseline(args):
+    rank = 0
+
+    data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv.gz')
+
+    def collate_fn(tuple_list):
+        labels = [x[3] for x in tuple_list]
+        return (labels)
+
+    dataset = DatasetTest(data_file_path, None, None, args, baseline_eval=True)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
+
+    AUC = []
+    MRR = []
+    nDCG5 = []
+    nDCG10 = []
+
+    local_sample_num = 0
+    
+    # log_vecs: user feature based on clicked doc history
+    # log_mask: log_vecs are padded; log_mask tells which items are padded (0) or not (1)
+    # candidate_news_vecs: vectors (from news_encoder) of all candidate news (from that sample row)
+    # labels: whether the candidate news is clicked or not
+    for cnt, (labels) in enumerate(dataloader):
+        local_sample_num += len(labels)
+        for label in labels:
+            if label.mean() == 0 or label.mean() == 1:
+                continue
+
+            score = list(range(label.shape[0], 0, -1))  # score: (22,)
+
+            auc = roc_auc_score(label, score)
+            mrr = mrr_score(label, score)
+            ndcg5 = ndcg_score(label, score, k=5)
+            ndcg10 = ndcg_score(label, score, k=10)
+
+            AUC.append(auc)
+            MRR.append(mrr)
+            nDCG5.append(ndcg5)
+            nDCG10.append(ndcg10)
+
+        if cnt % args.log_steps == 0:
+            print_metrics(rank, local_sample_num, get_mean([AUC, MRR, nDCG5, nDCG10]))
+
+    logging.info('[{}] local_sample_num: {}'.format(rank, local_sample_num))
+    print('Metrics: AUC, MRR, nDCG5, nDCG10')
+    print_metrics('*', local_sample_num, get_mean([AUC, MRR, nDCG5, nDCG10]))
+
 if __name__ == "__main__":
     utils.setuplogger()
     args = parse_args()
@@ -290,7 +338,7 @@ if __name__ == "__main__":
     os.environ['MASTER_PORT'] = '8888'
     Path(args.model_dir).mkdir(parents=True, exist_ok=True)
 
-    if 'train' in args.mode:
+    if args.mode == 'train':
         if args.prepare:
             logging.info('Preparing training data...')
             total_sample_num = prepare_training_data(args.train_data_dir, args.nGPU, args.npratio, args.seed)
@@ -317,7 +365,7 @@ if __name__ == "__main__":
         else:
             torch.multiprocessing.spawn(train, nprocs=args.nGPU, args=(args,))
 
-    if 'test' in args.mode:
+    elif args.mode == 'test':
         if args.prepare:
             logging.info('Preparing testing data...')
             total_sample_num = prepare_testing_data(args.test_data_dir, args.nGPU)
@@ -344,16 +392,19 @@ if __name__ == "__main__":
         else:
             torch.multiprocessing.spawn(test, nprocs=args.nGPU, args=(args,))
             
-    if args.mode == 'create_embeddings':
+    elif args.mode == 'test_baseline':
+        test_baseline(args)
+            
+    elif args.mode == 'create_embeddings':
         generate_bpemb_embeddings(args.bpemb_embedding_path)
         
-    if args.mode == 'gen_discuss_data':
+    elif args.mode == 'gen_discuss_data':
         gen_discuss_data(args.data_dir, nrows=args.nrows)
         
-    if args.mode == 'split_data':
+    elif args.mode == 'split_data':
         split_data(args.start_date, args.test_date, args.data_dir, args.train_data_dir, args.test_data_dir)
         
-    if args.mode == 'ad_hoc':
+    elif args.mode == 'ad_hoc':
         from discuss_utils import save_seen_tids, regen_test_dev_news_tsv
         regen_test_dev_news_tsv(args.data_dir, args.train_data_dir)
         regen_test_dev_news_tsv(args.data_dir, args.test_data_dir)

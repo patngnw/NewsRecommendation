@@ -19,6 +19,7 @@ def parse_args():
                                  'create_embeddings',
                                  'gen_discuss_data',
                                  'split_data',
+                                 'test_baseline',
                                  'ad_hoc'])
     parser.add_argument(
         "--train_data_dir",

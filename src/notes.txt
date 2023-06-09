@@ -21,3 +21,17 @@ earliest=04/28/2023:00:00:00 latest=05/09/2023:00:00:00
 | eval time = strftime(_time, "%Y-%m-%d %H:%M:%S")
 | table time, user_id, nwtc, uid, so, tid
 
+
+Baseline (with NO modification):
+[INFO 2023-06-09 12:25:46,836] [0] local_sample_num: 66697
+Metrics:                                          AUC,  MRR,    nDCG5,  nDCG10
+[INFO 2023-06-09 12:25:46,846] [*] 66697 samples: 66.88 29.56   44.97   53.37
+
+[INFO 2023-06-09 12:38:28,734] Model loaded from ../model/NAML/epoch-1-40000.pt
+Metrics:                                          AUC,  MRR,    nDCG5,  nDCG10
+[INFO 2023-06-09 12:41:48,468] [*] 66697 samples: 69.12 30.71   46.99   55.58
+
+
+[INFO 2023-06-09 12:38:28,734] Model loaded from ../model/NAML/epoch-1.pt
+Metrics:                                          AUC,  MRR,    nDCG5,  nDCG10
+[INFO 2023-06-09 12:51:41,025] [*] 66697 samples: 69.25 30.64   46.77   55.55

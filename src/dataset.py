@@ -51,24 +51,29 @@ class DatasetTrain(IterableDataset):
 
 
 class DatasetTest(DatasetTrain):
-    def __init__(self, filename, news_index, news_vecs, args):
+    def __init__(self, filename, news_index, news_vecs, args, baseline_eval=False):
         super(DatasetTrain).__init__()
         self.filename = filename
         self.news_index = news_index
         self.news_vecs = news_vecs
         self.args = args
+        self.baseline_eval = baseline_eval
 
     def line_mapper(self, line):
         line = line.strip().split('\t')
-        click_docs = line[3].split()
-        click_docs, log_mask = self.pad_to_fix_len(self.trans_to_nindex(click_docs), self.args.user_log_length)  # len: user_log_length (50)
-        user_feature = self.news_vecs[click_docs]  # shape: (50, 400)
+        if self.baseline_eval:
+            labels = np.array([int(i.split('-')[1]) for i in line[4].split()])  # len: impression_size (e.g. 22), value: 0 or 1
+            return None, None, None, labels
+        else:
+            click_docs = line[3].split()
+            click_docs, log_mask = self.pad_to_fix_len(self.trans_to_nindex(click_docs), self.args.user_log_length)  # len: user_log_length (50)
+            user_feature = self.news_vecs[click_docs]  # shape: (50, 400)
 
-        candidate_news = self.trans_to_nindex([i.split('-')[0] for i in line[4].split()])  # len: impression_size (e.g. 22)
-        labels = np.array([int(i.split('-')[1]) for i in line[4].split()])  # len: impression_size (e.g. 22), value: 0 or 1
-        news_feature = self.news_vecs[candidate_news]
+            candidate_news = self.trans_to_nindex([i.split('-')[0] for i in line[4].split()])  # len: impression_size (e.g. 22)
+            labels = np.array([int(i.split('-')[1]) for i in line[4].split()])  # len: impression_size (e.g. 22), value: 0 or 1
+            news_feature = self.news_vecs[candidate_news]
 
-        return user_feature, log_mask, news_feature, labels
+            return user_feature, log_mask, news_feature, labels
 
     def __iter__(self):
         if self.filename.endswith('.gz'):
