@@ -74,7 +74,7 @@ def train(rank, args):
     #     for name, param in model.named_parameters():
     #         print(name, param.requires_grad)
 
-    data_file_path = os.path.join(args.train_data_dir, f'behaviors_np{args.npratio}_{rank}.tsv')
+    data_file_path = os.path.join(args.train_data_dir, f'behaviors_np{args.npratio}_{rank}.tsv.gz')
 
     dataset = DatasetTrain(data_file_path, news_index, news_combined, args)
     dataloader = DataLoader(dataset, batch_size=args.batch_size)
