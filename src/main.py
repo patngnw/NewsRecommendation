@@ -143,6 +143,15 @@ def train(rank, args):
             logging.info(f"Model saved to {ckpt_path}.")
 
 
+def get_test_behavior_path(rank, args):
+    data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv.gz')
+    if args.test_users == 'seen':
+        data_file_path = data_file_path.replace('.tsv', '.seen_users.tsv')
+    elif args.test_users == 'unseen':
+        data_file_path = data_file_path.replace('.tsv', '.unseen_users.tsv')
+        
+    return data_file_path
+
 def test(rank, args):
     if rank is None:
         is_distributed = False
@@ -216,12 +225,7 @@ def test(rank, args):
                 doc_sim += np.dot(test_news_vecs[i], test_news_vecs[j]) / (np.linalg.norm(test_news_vecs[i]) * np.linalg.norm(test_news_vecs[j]))
         logging.info(f'News doc-sim: {doc_sim / 1000000}')
 
-    data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv.gz')
-    if args.test_users == 'seen':
-        data_file_path = data_file_path.replace('.tsv', '.seen_users.tsv')
-    elif args.test_users == 'unseen':
-        data_file_path = data_file_path.replace('.tsv', '.unseen_users.tsv')
-        
+    data_file_path = get_test_behavior_path(rank, args)
     logging.info(f'Behavior file: {data_file_path}')
 
     def collate_fn(tuple_list):
@@ -296,7 +300,9 @@ def test(rank, args):
 def test_baseline(args):
     rank = 0
 
-    data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv.gz')
+    data_file_path = get_test_behavior_path(rank, args)
+    logging.info(f'Behavior file: {data_file_path}')
+
 
     def collate_fn(tuple_list):
         labels = [x[3] for x in tuple_list]
