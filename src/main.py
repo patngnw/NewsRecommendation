@@ -205,7 +205,7 @@ def test(rank, args):
                 doc_sim += np.dot(test_news_vecs[i], test_news_vecs[j]) / (np.linalg.norm(test_news_vecs[i]) * np.linalg.norm(test_news_vecs[j]))
         logging.info(f'News doc-sim: {doc_sim / 1000000}')
 
-    data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv')
+    data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv.gz')
 
     def collate_fn(tuple_list):
         log_vecs = torch.FloatTensor([x[0] for x in tuple_list])
@@ -297,11 +297,14 @@ if __name__ == "__main__":
         else:
             total_sample_num = 0
             for i in range(args.nGPU):
-                data_file_path = os.path.join(args.train_data_dir, f'behaviors_np{args.npratio}_{i}.tsv')
+                data_file_path = os.path.join(args.train_data_dir, f'behaviors_np{args.npratio}_{i}.tsv.gz')
                 if not os.path.exists(data_file_path):
                     logging.error(f'Splited training data {data_file_path} for GPU {i} does not exist. Please set the parameter --prepare as True and rerun the code.')
                     exit()
-                result = subprocess.getoutput(f'wc -l {data_file_path}')
+                if data_file_path.endswith('.gz'):
+                    result = subprocess.getoutput(f'zcat {data_file_path} | wc -l')
+                else:               
+                    result = subprocess.getoutput(f'wc -l {data_file_path}')
                 total_sample_num += int(result.split(' ')[0])
             logging.info('Skip training data preparation.')
         logging.info(f'{total_sample_num} training samples, {total_sample_num // args.batch_size // args.nGPU} batches in total.')
@@ -318,11 +321,14 @@ if __name__ == "__main__":
         else:
             total_sample_num = 0
             for i in range(args.nGPU):
-                data_file_path = os.path.join(args.test_data_dir, f'behaviors_{i}.tsv')
+                data_file_path = os.path.join(args.test_data_dir, f'behaviors_{i}.tsv.gz')
                 if not os.path.exists(data_file_path):
                     logging.error(f'Splited testing data {data_file_path} for GPU {i} does not exist. Please set the parameter --prepare as True and rerun the code.')
                     exit()
-                result = subprocess.getoutput(f'wc -l {data_file_path}')
+                if data_file_path.endswith('.gz'):
+                    result = subprocess.getoutput(f'zcat {data_file_path} | wc -l')
+                else:               
+                    result = subprocess.getoutput(f'wc -l {data_file_path}')
                 total_sample_num += int(result.split(' ')[0])
             logging.info('Skip testing data preparation.')
         logging.info(f'{total_sample_num} testing samples in total.')

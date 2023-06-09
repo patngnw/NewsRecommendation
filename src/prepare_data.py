@@ -3,6 +3,7 @@ from tqdm import tqdm
 import random
 import logging
 from bpemb import BPEmb
+import gzip
 
 
 def get_sample(all_elements, num_sample):
@@ -43,8 +44,8 @@ def prepare_training_data(train_data_dir, nGPU, npratio, seed):
 
     logging.info('Writing files...')
     for i in range(nGPU):
-        processed_file_path = os.path.join(train_data_dir, f'behaviors_np{npratio}_{i}.tsv')
-        with open(processed_file_path, 'w') as f:
+        processed_file_path = os.path.join(train_data_dir, f'behaviors_np{npratio}_{i}.tsv.gz')
+        with gzip.open(processed_file_path, 'wt', encoding='utf-8') as f:
             f.writelines(behaviors_per_file[i])
 
     return len(behaviors)
@@ -60,8 +61,8 @@ def prepare_testing_data(test_data_dir, nGPU):
 
     logging.info('Writing files...')
     for i in range(nGPU):
-        processed_file_path = os.path.join(test_data_dir, f'behaviors_{i}.tsv')
-        with open(processed_file_path, 'w') as f:
+        processed_file_path = os.path.join(test_data_dir, f'behaviors_{i}.tsv.gz')
+        with gzip.open(processed_file_path, 'wt', encoding='utf-8') as f:
             f.writelines(behaviors[i])
 
     return sum([len(x) for x in behaviors])

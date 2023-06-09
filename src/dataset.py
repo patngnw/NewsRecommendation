@@ -1,6 +1,7 @@
 from torch.utils.data import IterableDataset, Dataset
 import numpy as np
 import random
+import gzip
 
 
 class DatasetTrain(IterableDataset):
@@ -42,7 +43,10 @@ class DatasetTrain(IterableDataset):
         return user_feature, log_mask, news_feature, label
 
     def __iter__(self):
-        file_iter = open(self.filename)
+        if self.filename.endswith('.gz'):
+            file_iter = gzip.open(self.filename, 'rt', encoding='utf-8')
+        else:
+            file_iter = open(self.filename)
         return map(self.line_mapper, file_iter)
 
 
@@ -67,7 +71,10 @@ class DatasetTest(DatasetTrain):
         return user_feature, log_mask, news_feature, labels
 
     def __iter__(self):
-        file_iter = open(self.filename)
+        if self.filename.endswith('.gz'):
+            file_iter = gzip.open(self.filename, 'rt', encoding='utf-8')
+        else:
+            file_iter = open(self.filename)
         return map(self.line_mapper, file_iter)
 
 
