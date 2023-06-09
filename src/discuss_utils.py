@@ -6,10 +6,6 @@ import numpy as np
 import logging
 
 
-connector_dir = Path("/opt/nwdata/data-playground/connector/src")
-sys.path.append(str(connector_dir))
-import mysql_conn
-
 _src_dir = Path(os.path.dirname(os.path.abspath(__file__)))
 
 def get_impressions_long_df(impression_path, nrows=None):
@@ -94,6 +90,10 @@ def chunks(l, n):
         yield l[i:i+n]
 
 def get_tids_info(tids):
+    connector_dir = Path("/opt/nwdata/data-playground/connector/src")
+    sys.path.append(str(connector_dir))
+    import mysql_conn
+
     sql_conn = mysql_conn.mysql_conn(product='discuss').get_conn_sqlalchemy()
     df_list = []
 
