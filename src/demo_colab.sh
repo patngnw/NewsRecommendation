@@ -5,12 +5,12 @@ nGPU=1
 model_dir='../model/NAML'
 model='NAML'
 use_category=True
-use_authorid=False
+use_authorid=True
 enable_gpu=True
 
 if [ ${mode} == train ]
 then
-    epochs=5
+    epochs=15
     batch_size=32
     lr=0.0003
     user_log_mask=False
