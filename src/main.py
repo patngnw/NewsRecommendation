@@ -340,3 +340,8 @@ if __name__ == "__main__":
         
     if args.mode == 'split_data':
         split_data(args.start_date, args.test_date, args.data_dir, args.train_data_dir, args.test_data_dir)
+        
+    if args.mode == 'ad_hoc':
+        from discuss_utils import save_seen_tids, regen_test_dev_news_tsv
+        regen_test_dev_news_tsv(args.data_dir, args.train_data_dir)
+        regen_test_dev_news_tsv(args.data_dir, args.test_data_dir)

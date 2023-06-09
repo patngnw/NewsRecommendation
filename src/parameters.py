@@ -18,7 +18,8 @@ def parse_args():
                         choices=['train', 'test', 'train_test', 
                                  'create_embeddings',
                                  'gen_discuss_data',
-                                 'split_data'])
+                                 'split_data',
+                                 'ad_hoc'])
     parser.add_argument(
         "--train_data_dir",
         type=str,
