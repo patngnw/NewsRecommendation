@@ -57,7 +57,7 @@ Metrics:                                          AUC,  MRR,    nDCG5,  nDCG10
 [INFO 2023-06-09 12:25:46,846] [*] 66697 samples: 66.88 29.56   44.97   53.37
 9.5, 5, epoch-3.pt 
 [INFO 2023-06-09 14:54:56,381] [*] 66697 samples: 71.89 32.31   50.63   58.77
-9.5, 5, epoch-5-30000.pt ***
+9.5, 5, epoch-5-30000.pt
 [INFO 2023-06-09 16:11:26,186] [*] 66697 samples: 72.43 32.76   51.44   59.49
 
 with author_id - epoch-1
@@ -67,6 +67,8 @@ with author_id - epoch-4-30000 ***
 
 with author_id - kernel 5 - epoch-1
 [INFO 2023-06-10 16:41:56,503] [*] 66697 samples: 72.09 32.61   50.98   59.07
+with author_id - kernel 5 - epoch-2-20000-kernal5.pt
+[INFO 2023-06-12 09:58:34,521] [*] 66697 samples: 72.43 33.16   51.74   59.72
 
 
 Size of test_user_ids = 24000
