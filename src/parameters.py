@@ -17,6 +17,7 @@ def parse_args():
                         default="train",
                         choices=['train', 'test', 'train_test', 
                                  'create_embeddings',
+                                 'create_bert_embeddings',
                                  'gen_discuss_data',
                                  'split_data',
                                  'test_baseline',
@@ -68,6 +69,8 @@ def parse_args():
     parser.add_argument("--start_date", type=str, default=None)
     parser.add_argument("--test_date", type=str, default=None)
     parser.add_argument("--skip_count_sample", type=utils.str2bool, default=False)
+
+    parser.add_argument("--size", type=str, choices=['all', 'tiny', 'small'], default='all')
     
     # alternate scoring
     parser.add_argument("--jitao_score_method", type=utils.str2bool, default=True)
@@ -79,5 +82,16 @@ def parse_args():
     args = parser.parse_args()
     if args.use_authorid:
         args.model_dir = args.model_dir + '_authorid'
+        
+    if args.size in ['tiny', 'small']:
+        if args.size not in args.train_data_dir:
+            args.train_data_dir = args.train_data_dir + "_" + args.size
+
+        if args.size not in args.test_data_dir:
+            args.test_data_dir = args.test_data_dir + "_" + args.size
+            
+        setattr(args, 'frac', 0.01 if args.size == 'tiny' else 0.1)
+    else:
+        setattr(args, 'frac', None)
         
     return args
