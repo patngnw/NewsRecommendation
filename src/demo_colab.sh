@@ -8,10 +8,11 @@ use_category=True
 use_authorid=True
 enable_gpu=True
 conv1d_kernel_size=3
+size=tiny
 
 if [ ${mode} == train ]
 then
-    epochs=15
+    epochs=5
     batch_size=32
     lr=0.0003
     user_log_mask=False
@@ -20,7 +21,7 @@ then
     python -u main.py --mode train --model_dir ${model_dir} --batch_size ${batch_size} --epochs ${epochs} --model ${model} \
     --lr ${lr} --user_log_mask ${user_log_mask} --prepare ${prepare} --nGPU ${nGPU} --enable_gpu ${enable_gpu} \
     --use_category ${use_category} --use_authorid ${use_authorid} --skip_count_sample ${skip_count_sample} \
-    --conv1d_kernel_size ${conv1d_kernel_size}
+    --conv1d_kernel_size ${conv1d_kernel_size} --size ${size}
 elif [ ${mode} == test ]
 then
     user_log_mask=True
@@ -34,7 +35,7 @@ then
     --load_ckpt_name ${load_ckpt_name} --model ${model} --prepare ${prepare} --nGPU ${nGPU} --enable_gpu ${enable_gpu} \
     --use_category ${use_category} --use_authorid ${use_authorid} --skip_count_sample ${skip_count_sample} \
     --jitao_score_method ${jitao_score_method} --jitao_topn 5 --jitao_boost 9.5 \
-    --test_users ${test_users} --conv1d_kernel_size ${conv1d_kernel_size}
+    --test_users ${test_users} --conv1d_kernel_size ${conv1d_kernel_size} --size ${size}
 else
     echo "Please select train or test mode."
 fi

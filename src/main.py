@@ -107,13 +107,13 @@ def train(rank, args):
 
             if rank == 0 and cnt != 0 and cnt % args.save_steps == 0:
                 ckpt_path = os.path.join(args.model_dir, f'epoch-{ep+1}-{cnt}.pt')
+                model_state_dict = { k: v for k, v in model.state_dict().items() if k != 'news_encoder.embedding_matrix.weight'}
                 torch.save(
                     {
                         'model_state_dict':
-                            {'.'.join(k.split('.')[1:]): v for k, v in model.state_dict().items()}
-                            if is_distributed else model.state_dict(),
+                            {'.'.join(k.split('.')[1:]): v for k, v in model_state_dict.items()}
+                            if is_distributed else model_state_dict,
                         'category_dict': category_dict,
-                        'word_dict': word_dict,
                         'authorid_dict': authorid_dict
                     }, ckpt_path)
                 logging.info(f"Model saved to {ckpt_path}.")
@@ -122,14 +122,14 @@ def train(rank, args):
 
         if rank == 0:
             ckpt_path = os.path.join(args.model_dir, f'epoch-{ep+1}.pt')
+            model_state_dict = { k: v for k, v in model.state_dict().items() if k != 'news_encoder.embedding_matrix.weight'}
             torch.save(
                 {
                     'model_state_dict':
-                        {'.'.join(k.split('.')[1:]): v for k, v in model.state_dict().items()}
-                        if is_distributed else model.state_dict(),
+                        {'.'.join(k.split('.')[1:]): v for k, v in model_state_dict.items()}
+                        if is_distributed else model_state_dict,
                     'category_dict': category_dict,
                     'authorid_dict': authorid_dict,
-                    'word_dict': word_dict,
                 }, ckpt_path)
             logging.info(f"Model saved to {ckpt_path}.")
 
@@ -165,7 +165,6 @@ def test(rank, args):
 
     authorid_dict = checkpoint['authorid_dict']
     category_dict = checkpoint['category_dict']
-    word_dict = checkpoint['word_dict']
 
     dummy_embedding_matrix = np.zeros((len(word_dict) + 1, args.word_embedding_dim))
     module = importlib.import_module(f'model.{args.model}')
