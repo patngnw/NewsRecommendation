@@ -121,7 +121,7 @@ class Model(torch.nn.Module):
         self.args = args
         pretrained_word_embedding = torch.from_numpy(embedding_matrix).float()
         news_embedding = nn.Embedding.from_pretrained(pretrained_word_embedding,
-                                                      freeze=args.freeze_embedding,
+                                                      freeze=True,
                                                       padding_idx=0)
         
         self.news_encoder = NewsEncoder(args, news_embedding, num_category, num_authorid)
