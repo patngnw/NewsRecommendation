@@ -6,6 +6,7 @@ import numpy as np
 import logging
 from transformers import AutoModel, AutoTokenizer
 from tqdm import tqdm
+import torch
 
 
 _src_dir = Path(os.path.dirname(os.path.abspath(__file__)))
@@ -280,7 +281,6 @@ def split_dev_behaviors(train_data_dir, test_data_dir):
     
 
 _embeddings_npyz = 'embeddings.npz'
-import torch
 def create_bert_embeddings_file(data_dir):
     data_dir = Path(data_dir)
     tokenizer = AutoTokenizer.from_pretrained('bert-base-chinese')
@@ -294,6 +294,7 @@ def create_bert_embeddings_file(data_dir):
 
     df = pd.read_csv(data_dir / _news_tsv, delimiter='\t', names=_news_header, dtype={'tid': int})
     embedding_list = []
+    embedding_list.append(np.zeros(768, dtype=float))
     for _, row in tqdm(df.iterrows(), total=df.shape[0], desc='Processing rows'):
         title = row['subject']
         title = tokenizer(
@@ -311,7 +312,7 @@ def create_bert_embeddings_file(data_dir):
     np.savez(output_path, embeddings=embeddings)
 
 
-def load_bert_embeddings_file(data_dir):    
+def load_bert_embeddings(data_dir):    
     data_dir = Path(data_dir)
     input_path = data_dir / _embeddings_npyz
     embeddings = np.load(input_path)['embeddings']
