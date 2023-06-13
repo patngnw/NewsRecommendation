@@ -280,17 +280,10 @@ def split_dev_behaviors(train_data_dir, test_data_dir):
     
 
 _embeddings_npyz = 'embeddings.npz'
-import torch
 def create_bert_embeddings_file(data_dir):
     data_dir = Path(data_dir)
     tokenizer = AutoTokenizer.from_pretrained('bert-base-chinese')
     bert = AutoModel.from_pretrained('bert-base-chinese')
-
-    # set device to GPU
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    # put model on GPU (is done in-place)
-    bert.to(device)
 
     df = pd.read_csv(data_dir / _news_tsv, delimiter='\t', names=_news_header, dtype={'tid': int})
     embedding_list = []
@@ -301,8 +294,8 @@ def create_bert_embeddings_file(data_dir):
                     return_tensors='pt',
                     return_token_type_ids=False,
                     truncation=True,
-                ).to(device)
-        embedding = bert(**title)[0][:, 0][0, :].detach().cpu().numpy()
+                )
+        embedding = bert(**title)[0][:, 0][0, :].detach().numpy()
         embedding_list.append(embedding)
 
     embeddings = np.stack(embedding_list)
