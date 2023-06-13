@@ -52,7 +52,7 @@ def train(rank, args):
         news, news_index, category_dict, authorid_dict, args)
     news_combined = np.concatenate([x for x in [news_idx, news_category, news_authorid] if x is not None], axis=-1)
     
-    embedding_matrix, tid2idx = discuss_utils.load_bert_embeddings(args.train_data_dir)
+    embedding_matrix = discuss_utils.load_bert_embeddings(args.train_data_dir)
 
     module = importlib.import_module(f'model.{args.model}')
     model = module.Model(args, embedding_matrix, len(category_dict), len(authorid_dict))
@@ -60,7 +60,9 @@ def train(rank, args):
     if args.load_ckpt_name is not None:
         ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
         checkpoint = torch.load(ckpt_path, map_location='cpu')
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(checkpoint['model_state_dict'],
+                              strict=False  # Because embedding_matrix.weights was fixed and wasn't saved.
+                              )
         logging.info(f"Model loaded from {ckpt_path}.")
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -166,10 +168,13 @@ def test(rank, args):
     authorid_dict = checkpoint['authorid_dict']
     category_dict = checkpoint['category_dict']
 
-    dummy_embedding_matrix = np.zeros((len(word_dict) + 1, args.word_embedding_dim))
+    embedding_matrix = discuss_utils.load_bert_embeddings(args.test_data_dir)
+    
     module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, dummy_embedding_matrix, len(category_dict), len(authorid_dict))
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model = module.Model(args, embedding_matrix, len(category_dict), len(authorid_dict))
+    model.load_state_dict(checkpoint['model_state_dict'],
+                              strict=False  # Because embedding_matrix.weights was fixed and wasn't saved.
+                        )
     logging.info(f"Model loaded from {ckpt_path}")
 
     if args.enable_gpu:
@@ -185,9 +190,9 @@ def test(rank, args):
     # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, authorid ]
     # category_dict = {}  # Dict: key=cat_name, value=idx
     # authorid_dict = {}  # Dict: key=authorid, value=idx
-    news_title, news_category, news_authorid = get_doc_input(
-        news, news_index, category_dict, authorid_dict, word_dict, args)
-    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid] if x is not None], axis=-1)
+    news_idx, news_category, news_authorid = get_doc_input(
+        news, news_index, category_dict, authorid_dict, args)
+    news_combined = np.concatenate([x for x in [news_idx, news_category, news_authorid] if x is not None], axis=-1)
 
     news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 1 + 1) (e.g. )
     news_dataloader = DataLoader(news_dataset,

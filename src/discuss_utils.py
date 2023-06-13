@@ -315,12 +315,8 @@ def create_bert_embeddings_file(data_dir):
 def load_bert_embeddings(data_dir):    
     data_dir = Path(data_dir)
     input_path = data_dir / _embeddings_npyz
-    embeddings = np.load(input_path)['embeddings']
-    
-    df = pd.read_csv(data_dir / _news_tsv, delimiter='\t', names=_news_header, dtype={'tid': int}, usecols=['tid'])
-    tid2idx = { v: k for k, v in enumerate(df['tid'].to_list()) }
-    
-    return embeddings, tid2idx
+    embeddings = np.load(input_path)['embeddings']    
+    return embeddings
 
         
 # def regen_test_dev_news_tsv_for_authorid(base_data_dir, data_dir):
