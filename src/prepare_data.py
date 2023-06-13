@@ -17,8 +17,8 @@ def prepare_training_data(train_data_dir, nGPU, npratio, seed):
     random.seed(seed)
     behaviors = []
 
-    behavior_file_path = os.path.join(train_data_dir, 'behaviors.tsv')
-    with open(behavior_file_path, 'r', encoding='utf-8') as f:
+    behavior_file_path = os.path.join(train_data_dir, 'behaviors.tsv.gz')
+    with gzip.open(behavior_file_path, 'rt', encoding='utf-8') as f:
         for line in tqdm(f):
             iid, uid, time, history, imp = line.strip().split('\t')
             impressions = [x.split('-') for x in imp.split(' ')]
@@ -42,9 +42,9 @@ def prepare_training_data(train_data_dir, nGPU, npratio, seed):
     for i, line in enumerate(behaviors):
         behaviors_per_file[i % nGPU].append(line)
 
-    logging.info('Writing files...')
     for i in range(nGPU):
         processed_file_path = os.path.join(train_data_dir, f'behaviors_np{npratio}_{i}.tsv.gz')
+        logging.info(f'Writing output to {processed_file_path}')
         with gzip.open(processed_file_path, 'wt', encoding='utf-8') as f:
             f.writelines(behaviors_per_file[i])
 
