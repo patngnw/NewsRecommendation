@@ -31,21 +31,21 @@ class NewsEncoder(nn.Module):
 
     def forward(self, x, mask=None):
         '''
-            x: batch_size, word_num + 2
+            x: batch_size * news_num_in_batch, word_num + 2
             mask: batch_size, word_num + 2
         '''
-        title = torch.narrow(x, -1, 0, self.num_words_title).long()
-        word_vecs = F.dropout(self.embedding_matrix(title),
+        title = torch.narrow(x, -1, 0, self.num_words_title).long()  # shape: 160, word_num
+        word_vecs = F.dropout(self.embedding_matrix(title),  # self.embedding_matrix(title): (160, 20, 300)
                               p=self.drop_rate,
-                              training=self.training)
-        context_word_vecs = self.cnn(word_vecs.transpose(1, 2)).transpose(1, 2)
-        title_vecs = self.attn(context_word_vecs, mask)
+                              training=self.training)  # word_vecs: (160, 20, 300)
+        context_word_vecs = self.cnn(word_vecs.transpose(1, 2)).transpose(1, 2)  # context_word_vecs: (160, 20, 400)
+        title_vecs = self.attn(context_word_vecs, mask)  # title_vecs: (160, 400)
         all_vecs = [title_vecs]
 
         start = self.num_words_title
         if self.use_category:
-            category = torch.narrow(x, -1, start, 1).squeeze(dim=-1).long()
-            category_vecs = self.category_dense(self.category_emb(category))
+            category = torch.narrow(x, -1, start, 1).squeeze(dim=-1).long()  # category: (160,)
+            category_vecs = self.category_dense(self.category_emb(category))  # category_vecs: (160, 400)
             all_vecs.append(category_vecs)
             start += 1
         if self.use_authorid:
