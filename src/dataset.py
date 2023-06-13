@@ -8,7 +8,7 @@ class DatasetTrain(IterableDataset):
     def __init__(self, filename, news_index, news_combined, args):
         super(DatasetTrain).__init__()
         self.filename = filename
-        self.news_index = news_index
+        self.news_index = news_index  # 1-based
         self.news_combined = news_combined
         self.args = args
 
@@ -26,11 +26,11 @@ class DatasetTrain(IterableDataset):
 
     def line_mapper(self, line):
         line = line.strip().split('\t')
-        click_docs = line[3].split()
+        click_docs_org = line[3].split()
         sess_pos = line[4].split()
         sess_neg = line[5].split()
 
-        click_docs, log_mask = self.pad_to_fix_len(self.trans_to_nindex(click_docs), self.args.user_log_length)
+        click_docs, log_mask = self.pad_to_fix_len(self.trans_to_nindex(click_docs_org), self.args.user_log_length)
         user_feature = self.news_combined[click_docs]
 
         pos = self.trans_to_nindex(sess_pos)

@@ -45,15 +45,17 @@ def train(rank, args):
     if args.enable_gpu:
         torch.cuda.set_device(rank)
 
-    news, news_index, category_dict, authorid_dict, word_dict = read_news(
+    news, news_index, category_dict, authorid_dict = read_news(
         os.path.join(args.train_data_dir, 'news.tsv'), args, mode='train')
 
-    news_title, news_category, news_authorid = get_doc_input(
-        news, news_index, category_dict, authorid_dict, word_dict, args)
-    news_combined = np.concatenate([x for x in [news_category, news_authorid] if x is not None], axis=-1)
+    news_idx, news_category, news_authorid = get_doc_input(
+        news, news_index, category_dict, authorid_dict, args)
+    news_combined = np.concatenate([x for x in [news_idx, news_category, news_authorid] if x is not None], axis=-1)
+    
+    embedding_matrix, tid2idx = discuss_utils.load_bert_embeddings(args.train_data_dir)
 
     module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, len(category_dict), len(authorid_dict))
+    model = module.Model(args, embedding_matrix, len(category_dict), len(authorid_dict))
 
     if args.load_ckpt_name is not None:
         ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
@@ -76,7 +78,7 @@ def train(rank, args):
 
     data_file_path = os.path.join(args.train_data_dir, f'behaviors_np{args.npratio}_{rank}.tsv.gz')
 
-    dataset = DatasetTrain(data_file_path, news_index, news_title, news_combined, args)
+    dataset = DatasetTrain(data_file_path, news_index, news_combined, args)
     dataloader = DataLoader(dataset, batch_size=args.batch_size)
 
     logging.info('Training...')
