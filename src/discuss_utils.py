@@ -4,8 +4,6 @@ import sys
 import os
 import numpy as np
 import logging
-from transformers import AutoModel, AutoTokenizer
-from tqdm import tqdm
 
 
 _src_dir = Path(os.path.dirname(os.path.abspath(__file__)))
@@ -181,7 +179,7 @@ def get_seen_tids(df_behavior):
     return sorted(list(tids_all))
         
 
-def split_data(start_date, test_date, data_dir, train_data_dir, test_data_dir, frac=None):
+def split_data(start_date, test_date, data_dir, train_data_dir, test_data_dir):
     assert test_date > start_date
     data_dir = Path(data_dir)
     train_data_dir = Path(train_data_dir)
@@ -190,16 +188,14 @@ def split_data(start_date, test_date, data_dir, train_data_dir, test_data_dir, f
     os.makedirs(test_data_dir, exist_ok=True)
     
     df_behaviors = pd.read_csv(data_dir / _behaviors_tsv, delimiter='\t', names=['id'] + _behaviors_header)
-    if frac:
-        df_behaviors = df_behaviors.sample(frac=frac)
     df_behaviors['date'] = df_behaviors.time.str.slice(0, 10).astype(str)
     
-    output_path = train_data_dir / (_behaviors_tsv + '.gz')
+    output_path = train_data_dir / _behaviors_tsv + '.gz'
     logging.info(f'Writing to {output_path}')
     df_behaviors_train = df_behaviors.loc[(df_behaviors.date >= start_date) & (df_behaviors.date < test_date)]
     df_behaviors_train[_behaviors_header].to_csv(output_path, sep='\t', index=True, header=None, encoding='utf-8')
     
-    output_path = test_data_dir / (_behaviors_tsv + '.gz')
+    output_path = test_data_dir / _behaviors_tsv + '.gz'
     logging.info(f'Writing to {output_path}')
     df_behaviors_test = df_behaviors.loc[df_behaviors.date == test_date]
     df_behaviors_test[_behaviors_header].to_csv(output_path, sep='\t', index=True, header=None, encoding='utf-8')
@@ -278,43 +274,7 @@ def split_dev_behaviors(train_data_dir, test_data_dir):
     logging.info(f'Size of unseen_user_ids = {len(unseen_user_ids)}')
     df_test.loc[df_test.user_id.isin(unseen_user_ids)].to_csv(output_path, sep="\t", index=False, header=None, encoding='utf-8')
     
-
-_embeddings_npyz = 'embeddings.npz'
-def create_bert_embeddings_file(data_dir):
-    data_dir = Path(data_dir)
-    tokenizer = AutoTokenizer.from_pretrained('bert-base-chinese')
-    bert = AutoModel.from_pretrained('bert-base-chinese')
-
-    df = pd.read_csv(data_dir / _news_tsv, delimiter='\t', names=_news_header, dtype={'tid': int})
-    embedding_list = []
-    for _, row in tqdm(df.iterrows(), total=df.shape[0], desc='Processing rows'):
-        title = row['subject']
-        title = tokenizer(
-                    title,
-                    return_tensors='pt',
-                    return_token_type_ids=False,
-                    truncation=True,
-                )
-        embedding = bert(**title)[0][:, 0][0, :].detach().numpy()
-        embedding_list.append(embedding)
-
-    embeddings = np.stack(embedding_list)
-    output_path = data_dir / _embeddings_npyz
-    logging.info(f'Writing output to {output_path}')
-    np.savez(output_path, embeddings=embeddings)
-
-
-def load_bert_embeddings_file(data_dir):    
-    data_dir = Path(data_dir)
-    input_path = data_dir / _embeddings_npyz
-    embeddings = np.load(input_path)['embeddings']
     
-    df = pd.read_csv(data_dir / _news_tsv, delimiter='\t', names=_news_header, dtype={'tid': int}, usecols=['tid'])
-    tid2idx = { v: k for k, v in enumerate(df['tid'].to_list()) }
-    
-    return embeddings, tid2idx
-
-        
 # def regen_test_dev_news_tsv_for_authorid(base_data_dir, data_dir):
 #     base_data_dir = Path(base_data_dir)
 #     data_dir = Path(data_dir)

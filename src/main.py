@@ -17,8 +17,8 @@ import utils
 from parameters import parse_args
 from preprocess import read_news, get_doc_input
 from prepare_data import prepare_training_data, prepare_testing_data, generate_bpemb_embeddings
+from discuss_utils import gen_discuss_data, split_data
 from dataset import DatasetTrain, DatasetTest, NewsDataset
-import discuss_utils
 
 
 def get_mean(arr):
@@ -50,10 +50,21 @@ def train(rank, args):
 
     news_title, news_category, news_authorid = get_doc_input(
         news, news_index, category_dict, authorid_dict, word_dict, args)
-    news_combined = np.concatenate([x for x in [news_category, news_authorid] if x is not None], axis=-1)
+    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid] if x is not None], axis=-1)
+
+    if rank == 0:
+        logging.info('Initializing word embedding matrix...')
+
+    embedding_matrix, have_word = utils.load_matrix(args.bpemb_embedding_path,
+                                                    word_dict,
+                                                    args.word_embedding_dim)
+    if rank == 0:
+        logging.info(f'Word dict length: {len(word_dict)}')
+        logging.info(f'Have words: {len(have_word)}')
+        logging.info(f'Missing rate: {(len(word_dict) - len(have_word)) / len(word_dict)}')
 
     module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, len(category_dict), len(authorid_dict))
+    model = module.Model(args, embedding_matrix, len(category_dict), len(authorid_dict))
 
     if args.load_ckpt_name is not None:
         ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
@@ -76,7 +87,7 @@ def train(rank, args):
 
     data_file_path = os.path.join(args.train_data_dir, f'behaviors_np{args.npratio}_{rank}.tsv.gz')
 
-    dataset = DatasetTrain(data_file_path, news_index, news_title, news_combined, args)
+    dataset = DatasetTrain(data_file_path, news_index, news_combined, args)
     dataloader = DataLoader(dataset, batch_size=args.batch_size)
 
     logging.info('Training...')
@@ -407,20 +418,17 @@ if __name__ == "__main__":
         generate_bpemb_embeddings(args.bpemb_embedding_path)
         
     elif args.mode == 'gen_discuss_data':
-        discuss_utils.gen_discuss_data(args.data_dir, nrows=args.nrows)
+        gen_discuss_data(args.data_dir, nrows=args.nrows)
         
     elif args.mode == 'split_data':
-        discuss_utils.split_data(args.start_date, args.test_date, args.data_dir, args.train_data_dir, args.test_data_dir, args.frac)
-        
-    elif args.mode == 'create_bert_embeddings':
-        discuss_utils.create_bert_embeddings_file(args.train_data_dir)
-        discuss_utils.create_bert_embeddings_file(args.test_data_dir)
+        split_data(args.start_date, args.test_date, args.data_dir, args.train_data_dir, args.test_data_dir)
         
     elif args.mode == 'ad_hoc':
-        #discuss_utils.regen_test_dev_news_tsv(args.data_dir, args.train_data_dir)
-        #discuss_utils.regen_test_dev_news_tsv(args.data_dir, args.test_data_dir)
+        from discuss_utils import save_seen_tids, regen_test_dev_news_tsv, split_dev_behaviors, regen_test_dev_news_tsv_for_authorid
+        #regen_test_dev_news_tsv(args.data_dir, args.train_data_dir)
+        #regen_test_dev_news_tsv(args.data_dir, args.test_data_dir)
         
-        #discuss_utils.plit_dev_behaviors(args.train_data_dir, args.test_data_dir)
+        #split_dev_behaviors(args.train_data_dir, args.test_data_dir)
         
-        discuss_utils.regen_test_dev_news_tsv_for_authorid(args.data_dir, args.train_data_dir)
-        discuss_utils.regen_test_dev_news_tsv_for_authorid(args.data_dir, args.test_data_dir)
+        regen_test_dev_news_tsv_for_authorid(args.data_dir, args.train_data_dir)
+        regen_test_dev_news_tsv_for_authorid(args.data_dir, args.test_data_dir)
