@@ -91,6 +91,9 @@ def parse_args():
             args.test_data_dir = args.test_data_dir + "_" + args.size
             
         setattr(args, 'frac', 0.01 if args.size == 'tiny' else 0.1)
+        
+        args.model_dir = args.model_dir + '_' + args.size
+
     else:
         setattr(args, 'frac', None)
         
