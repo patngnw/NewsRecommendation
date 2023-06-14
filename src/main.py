@@ -17,7 +17,7 @@ import utils
 from parameters import parse_args
 from preprocess import read_news, get_doc_input
 from prepare_data import prepare_training_data, prepare_testing_data, generate_bpemb_embeddings
-from discuss_utils import gen_discuss_data, split_data
+import discuss_utils
 from dataset import DatasetTrain, DatasetTest, NewsDataset
 
 
@@ -424,17 +424,19 @@ if __name__ == "__main__":
         generate_bpemb_embeddings(args.bpemb_embedding_path)
         
     elif args.mode == 'gen_discuss_data':
-        gen_discuss_data(args.data_dir, nrows=args.nrows)
+        discuss_utils.gen_discuss_data(args.data_dir, nrows=args.nrows)
         
     elif args.mode == 'split_data':
-        split_data(args.start_date, args.test_date, args.data_dir, args.train_data_dir, args.test_data_dir)
+        discuss_utils.split_data(args.start_date, args.test_date, args.data_dir, args.train_data_dir, args.test_data_dir)
         
     elif args.mode == 'ad_hoc':
-        from discuss_utils import save_seen_tids, regen_test_dev_news_tsv, split_dev_behaviors, regen_test_dev_news_tsv_for_authorid
-        #regen_test_dev_news_tsv(args.data_dir, args.train_data_dir)
-        #regen_test_dev_news_tsv(args.data_dir, args.test_data_dir)
+        #discuss_utils.regen_test_dev_news_tsv(args.data_dir, args.train_data_dir)
+        #discuss_utils.regen_test_dev_news_tsv(args.data_dir, args.test_data_dir)
         
-        #split_dev_behaviors(args.train_data_dir, args.test_data_dir)
+        #discuss_utils.split_dev_behaviors(args.train_data_dir, args.test_data_dir)
         
-        regen_test_dev_news_tsv_for_authorid(args.data_dir, args.train_data_dir)
-        regen_test_dev_news_tsv_for_authorid(args.data_dir, args.test_data_dir)
+        discuss_utils.regen_test_dev_news_tsv_for_authorid(args.data_dir, args.train_data_dir)
+        discuss_utils.regen_test_dev_news_tsv_for_authorid(args.data_dir, args.test_data_dir)
+
+    elif args.mode == 'gen_entity_lookup':
+        discuss_utils.gen_entity_lookup(args.data_dir, update_news_tsv=args.gen_entity_update_news_tsv)

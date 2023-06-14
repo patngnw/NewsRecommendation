@@ -19,6 +19,7 @@ def parse_args():
                                  'create_embeddings',
                                  'create_bert_embeddings',
                                  'gen_discuss_data',
+                                 'gen_entity_lookup',
                                  'split_data',
                                  'test_baseline',
                                  'ad_hoc'])
@@ -71,6 +72,8 @@ def parse_args():
     parser.add_argument("--skip_count_sample", type=utils.str2bool, default=False)
 
     parser.add_argument("--size", type=str, choices=['all', 'tiny', 'small'], default='all')
+    parser.add_argument("--gen_entity_update_news_tsv", type=utils.str2bool, default=False)
+
     
     # alternate scoring
     parser.add_argument("--jitao_score_method", type=utils.str2bool, default=True)

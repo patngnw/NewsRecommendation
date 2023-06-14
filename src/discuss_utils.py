@@ -4,6 +4,9 @@ import sys
 import os
 import numpy as np
 import logging
+import torch
+from utils import update_dict
+import pickle
 
 
 _src_dir = Path(os.path.dirname(os.path.abspath(__file__)))
@@ -273,8 +276,63 @@ def split_dev_behaviors(train_data_dir, test_data_dir):
     unseen_user_ids = test_user_ids.difference(train_user_ids) 
     logging.info(f'Size of unseen_user_ids = {len(unseen_user_ids)}')
     df_test.loc[df_test.user_id.isin(unseen_user_ids)].to_csv(output_path, sep="\t", index=False, header=None, encoding='utf-8')
-    
-    
+
+
+_entities_dict_pkl = 'entities_dict.pkl'
+
+
+def gen_entity_lookup(data_dir, update_news_tsv=False):
+    # https://github.com/ckiplab/ckip-transformers
+    from ckip_transformers.nlp import CkipNerChunker
+
+    ner_driver = CkipNerChunker(model="bert-base", device=(0 if torch.cuda.is_available() else -1))
+
+    data_dir = Path(data_dir)
+
+    entities_whole_df = []
+
+    entities_dict_pkl_path = data_dir / _entities_dict_pkl
+    if os.path.exists(entities_dict_pkl_path):
+        with open(entities_dict_pkl_path, 'rb') as f:
+            logging.info(f'Loading existing entities_all dict from {entities_dict_pkl_path}')
+            entities_all = pickle.load(f)
+            entities_all_org_size = len(entities_all)
+    else:
+        entities_all = dict()
+        entities_all_org_size = 0
+
+    chunksize = 128
+    for df_chunk in pd.read_csv(data_dir / _news_tsv, delimiter='\t', names=_news_header, dtype={'tid': int},
+                                chunksize=chunksize):
+        subjects = df_chunk['subject'].to_list()
+        result_list = ner_driver(subjects)
+        for result in result_list:
+            entities_one_item = []
+            for ner in result:
+                if ner.ner in ['DATE', 'CARDINAL']:
+                    continue
+
+                entity = ner.word + '-' + ner.ner
+                update_dict(entities_all, entity)
+                entity_idx = entities_all[entity]
+                if entity_idx not in entities_one_item:
+                    entities_one_item.append(entity_idx)
+
+            if update_news_tsv:
+                entities_whole_df.append(','.join(map(str, entities_one_item)))
+
+    logging.info(f'New entities found: {len(entities_all) - entities_all_org_size}')
+    logging.info(f'Writing output to {entities_dict_pkl_path}')
+    with open(entities_dict_pkl_path, 'wb') as f:
+        pickle.dump(entities_all, f)
+
+    if update_news_tsv:
+        output_path = data_dir / _news_tsv
+        df = pd.read_csv(data_dir / _news_tsv, delimiter='\t', names=_news_header, dtype={'tid': int})
+        df['title_entities'] = entities_whole_df
+        logging.info(f'Writing output to {output_path}')
+        df[_news_header].to_csv(output_path, sep='\t', index=False, header=None, encoding='utf-8')
+
 # def regen_test_dev_news_tsv_for_authorid(base_data_dir, data_dir):
 #     base_data_dir = Path(base_data_dir)
 #     data_dir = Path(data_dir)
