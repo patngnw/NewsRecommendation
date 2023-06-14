@@ -30,6 +30,18 @@ def get_sum(arr):
 def print_metrics(rank, cnt, x):
     logging.info("[{}] {} samples: {}".format(rank, cnt, '\t'.join(["{:0.2f}".format(i * 100) for i in x])))
 
+def save_chkpt(model, ckpt_path, is_distributed, category_dict, authorid_dict, entity_dict):
+    model_state_dict = { k: v for k, v in model.state_dict().items() if k != 'news_encoder.embedding_matrix.weight'}
+    ckpt_dict = {
+            'model_state_dict':
+                {'.'.join(k.split('.')[1:]): v for k, v in model_state_dict.items()}
+                if is_distributed else model_state_dict,
+            'category_dict': category_dict,
+        }
+    ckpt_dict['authorid_dict'] = authorid_dict
+    ckpt_dict['entity_dict'] = entity_dict
+    torch.save(ckpt_dict, ckpt_path)
+    logging.info(f"Model saved to {ckpt_path}.")
 
 def train(rank, args):
     if rank is None:
@@ -112,32 +124,13 @@ def train(rank, args):
 
             if rank == 0 and cnt != 0 and cnt % args.save_steps == 0:
                 ckpt_path = os.path.join(args.model_dir, f'epoch-{ep+1}-{cnt}.pt')
-                model_state_dict = { k: v for k, v in model.state_dict().items() if k != 'news_encoder.embedding_matrix.weight'}
-                torch.save(
-                    {
-                        'model_state_dict':
-                            {'.'.join(k.split('.')[1:]): v for k, v in model_state_dict.items()}
-                            if is_distributed else model_state_dict,
-                        'category_dict': category_dict,
-                        'authorid_dict': authorid_dict
-                    }, ckpt_path)
-                logging.info(f"Model saved to {ckpt_path}.")
+                save_chkpt(model, ckpt_path, is_distributed, category_dict, authorid_dict, entity_dict)
 
         logging.info('Training finish.')
 
         if rank == 0:
             ckpt_path = os.path.join(args.model_dir, f'epoch-{ep+1}.pt')
-            model_state_dict = { k: v for k, v in model.state_dict().items() if k != 'news_encoder.embedding_matrix.weight'}
-            torch.save(
-                {
-                    'model_state_dict':
-                        {'.'.join(k.split('.')[1:]): v for k, v in model_state_dict.items()}
-                        if is_distributed else model_state_dict,
-                    'category_dict': category_dict,
-                    'authorid_dict': authorid_dict,
-                }, ckpt_path)
-            logging.info(f"Model saved to {ckpt_path}.")
-
+            save_chkpt(model, ckpt_path, is_distributed, category_dict, authorid_dict, entity_dict)
 
 def get_test_behavior_path(rank, args):
     data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv.gz')
