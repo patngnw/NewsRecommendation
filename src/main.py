@@ -430,3 +430,6 @@ if __name__ == "__main__":
         
         discuss_utils.regen_test_dev_news_tsv_for_authorid(args.data_dir, args.train_data_dir)
         discuss_utils.regen_test_dev_news_tsv_for_authorid(args.data_dir, args.test_data_dir)
+        
+    elif args.mode == 'gen_entity_lookup':
+        discuss_utils.gen_entity_lookup(args.data_dir, update_news_tsv=args.gen_entity_update_news_tsv)

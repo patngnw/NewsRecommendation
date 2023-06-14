@@ -4,14 +4,7 @@ import numpy as np
 #from nltk.tokenize import word_tokenize
 #from bpemb import BPEmb
 from transformers import AutoModel, AutoTokenizer
-
-
-def update_dict(dict, key, value=None):
-    if key not in dict:
-        if value is None:
-            dict[key] = len(dict) + 1
-        else:
-            dict[key] = value
+from utils import update_dict
 
 
 def read_news(news_path, args, mode='train'):

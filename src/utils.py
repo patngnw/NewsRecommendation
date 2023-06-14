@@ -93,3 +93,12 @@ def get_checkpoint(directory, ckpt_name):
         return ckpt_path
     else:
         return None
+    
+    
+def update_dict(dict, key, value=None):
+    if key not in dict:
+        if value is None:
+            dict[key] = len(dict) + 1
+        else:
+            dict[key] = value
+
