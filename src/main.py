@@ -195,7 +195,7 @@ def test(rank, args):
     # category_dict = {}  # Dict: key=cat_name, value=idx
     # authorid_dict = {}  # Dict: key=authorid, value=idx
     news_idx, news_category, news_authorid, news_entity = get_doc_input(
-        news, news_index, category_dict, authorid_dict, args)
+        news, news_index, category_dict, authorid_dict, entity_dict, args)
     news_combined = np.concatenate([x for x in [news_idx, news_category, news_authorid, news_entity] if x is not None], axis=-1)
 
     news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 1 + 1) (e.g. )
