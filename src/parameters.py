@@ -73,7 +73,7 @@ def parse_args():
 
     parser.add_argument("--size", type=str, choices=['all', 'tiny', 'small'], default='all')
     parser.add_argument("--gen_entity_update_news_tsv", type=utils.str2bool, default=False)
-
+    parser.add_argument("--skip_title", type=utils.str2bool, default=False)
     
     # alternate scoring
     parser.add_argument("--jitao_score_method", type=utils.str2bool, default=True)
@@ -84,7 +84,7 @@ def parse_args():
 
     args = parser.parse_args()
     if args.use_authorid:
-        args.model_dir = args.model_dir + '_authorid'
+        args.model_dir += '_authorid'
         
     if args.size in ['tiny', 'small']:
         if args.size not in args.train_data_dir:
@@ -95,9 +95,12 @@ def parse_args():
             
         setattr(args, 'frac', 0.01 if args.size == 'tiny' else 0.1)
         
-        args.model_dir = args.model_dir + '_' + args.size
+        args.model_dir += '_' + args.size
 
     else:
         setattr(args, 'frac', None)
+        
+    if args.skip_title:
+        args.model_dir += '_skiptitle'
         
     return args

@@ -35,23 +35,25 @@ class NewsEncoder(nn.Module):
         if args.use_category or args.use_authorid:
             self.final_attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)
             
-        # self.cnn = nn.Conv1d(
-        #     in_channels=args.word_embedding_dim,
-        #     out_channels=args.news_dim,
-        #     kernel_size=args.conv1d_kernel_size,
-        #     padding=1
-        # )
-        # self.attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)
-        
-        # Bert
-        self.bert_dim = 768
-        self.pooler = nn.Sequential(
-            nn.Linear(self.bert_dim, args.news_dim),
-            nn.Dropout(0.01),
-            nn.LayerNorm(args.news_dim),
-            nn.SiLU(),
-        )
-        self.pooler.apply(init_weights)
+        self.skip_title = args.skip_title
+        if not self.skip_title:
+            # self.cnn = nn.Conv1d(
+            #     in_channels=args.word_embedding_dim,
+            #     out_channels=args.news_dim,
+            #     kernel_size=args.conv1d_kernel_size,
+            #     padding=1
+            # )
+            # self.attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)
+            
+            # Bert
+            self.bert_dim = 768
+            self.pooler = nn.Sequential(
+                nn.Linear(self.bert_dim, args.news_dim),
+                nn.Dropout(0.01),
+                nn.LayerNorm(args.news_dim),
+                nn.SiLU(),
+            )
+            self.pooler.apply(init_weights)
 
 
     def forward(self, x, mask=None):
@@ -59,10 +61,12 @@ class NewsEncoder(nn.Module):
             x: batch_size, word_num + 2
             mask: batch_size, word_num + 2
         '''
-        news_idx = torch.narrow(x, -1, 0, 1).long().reshape(-1, 1)  # news_idx: (32 * 5, 1)
-        embeddings = self.embedding_matrix(news_idx).squeeze()  # embeddings: (160, 768)        
-        title_vecs = self.pooler(embeddings).squeeze()  # title_vecs: (160, 400)
-        all_vecs = [title_vecs]
+        all_vecs = []
+        if not self.skip_title:
+            news_idx = torch.narrow(x, -1, 0, 1).long().reshape(-1, 1)  # news_idx: (32 * 5, 1)
+            embeddings = self.embedding_matrix(news_idx).squeeze()  # embeddings: (160, 768)        
+            title_vecs = self.pooler(embeddings).squeeze()  # title_vecs: (160, 400)
+            all_vecs = [title_vecs]
 
         ########################
         # title = torch.narrow(x, -1, 0, self.num_words_title).long()  # shape: 160, word_num
