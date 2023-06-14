@@ -22,7 +22,7 @@ def parse_args():
                                  'gen_entity_lookup',
                                  'split_data',
                                  'test_baseline',
-                                 'ad_hoc'])
+                                 'adhoc'])
     parser.add_argument(
         "--train_data_dir",
         type=str,
@@ -62,6 +62,7 @@ def parse_args():
     parser.add_argument("--load_ckpt_name", type=str, default=None)
     parser.add_argument("--use_category", type=utils.str2bool, default=True)
     parser.add_argument("--use_authorid", type=utils.str2bool, default=True)
+    parser.add_argument("--use_entity", type=utils.str2bool, default=True)
     parser.add_argument("--category_emb_dim", type=int, default=100)
     parser.add_argument("--show_news_doc_sim", type=utils.str2bool, default=False)
     
@@ -102,5 +103,8 @@ def parse_args():
         
     if args.skip_title:
         args.model_dir += '_skiptitle'
+
+    if args.use_entity:
+        args.model_dir += '_entity'
         
     return args

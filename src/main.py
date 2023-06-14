@@ -45,17 +45,20 @@ def train(rank, args):
     if args.enable_gpu:
         torch.cuda.set_device(rank)
 
-    news, news_index, category_dict, authorid_dict = read_news(
+    news, news_index, category_dict, authorid_dict, entity_dict = read_news(
         os.path.join(args.train_data_dir, 'news.tsv'), args, mode='train')
 
-    news_idx, news_category, news_authorid = get_doc_input(
-        news, news_index, category_dict, authorid_dict, args)
-    news_combined = np.concatenate([x for x in [news_idx, news_category, news_authorid] if x is not None], axis=-1)
+    news_idx, news_category, news_authorid, news_entity = get_doc_input(
+        news, news_index, category_dict, authorid_dict, entity_dict, args)
+    news_combined = np.concatenate([x for x in [news_idx, news_category, news_authorid, news_entity] if x is not None], axis=-1)
     
-    embedding_matrix = discuss_utils.load_bert_embeddings(args.train_data_dir)
+    if args.skip_title:
+        embedding_matrix = None
+    else:
+        embedding_matrix = discuss_utils.load_bert_embeddings(args.train_data_dir)
 
     module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, embedding_matrix, len(category_dict), len(authorid_dict))
+    model = module.Model(args, embedding_matrix, len(category_dict), len(authorid_dict), len(entity_dict))
 
     if args.load_ckpt_name is not None:
         ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
@@ -165,13 +168,21 @@ def test(rank, args):
     assert ckpt_path is not None, 'No checkpoint found.'
     checkpoint = torch.load(ckpt_path, map_location='cpu')
 
-    authorid_dict = checkpoint['authorid_dict']
+    entity_dict = authorid_dict = dict()
     category_dict = checkpoint['category_dict']
+    
+    if args.use_authorid:
+        authorid_dict = checkpoint['authorid_dict']
+    if args.use_entity:
+        entity_dict = checkpoint['entity_dict']
 
-    embedding_matrix = discuss_utils.load_bert_embeddings(args.test_data_dir)
+    if args.skip_title:
+        embedding_matrix = None
+    else:
+        embedding_matrix = discuss_utils.load_bert_embeddings(args.test_data_dir)
     
     module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, embedding_matrix, len(category_dict), len(authorid_dict))
+    model = module.Model(args, embedding_matrix, len(category_dict), len(authorid_dict), len(entity_dict))
     model.load_state_dict(checkpoint['model_state_dict'],
                               strict=False  # Because embedding_matrix.weights was fixed and wasn't saved.
                         )
@@ -190,9 +201,9 @@ def test(rank, args):
     # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, authorid ]
     # category_dict = {}  # Dict: key=cat_name, value=idx
     # authorid_dict = {}  # Dict: key=authorid, value=idx
-    news_idx, news_category, news_authorid = get_doc_input(
+    news_idx, news_category, news_authorid, news_entity = get_doc_input(
         news, news_index, category_dict, authorid_dict, args)
-    news_combined = np.concatenate([x for x in [news_idx, news_category, news_authorid] if x is not None], axis=-1)
+    news_combined = np.concatenate([x for x in [news_idx, news_category, news_authorid, news_entity] if x is not None], axis=-1)
 
     news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 1 + 1) (e.g. )
     news_dataloader = DataLoader(news_dataset,
@@ -422,14 +433,19 @@ if __name__ == "__main__":
         discuss_utils.create_bert_embeddings_file(args.train_data_dir)
         discuss_utils.create_bert_embeddings_file(args.test_data_dir)
         
-    elif args.mode == 'ad_hoc':
+    elif args.mode == 'adhoc':
         #discuss_utils.regen_test_dev_news_tsv(args.data_dir, args.train_data_dir)
         #discuss_utils.regen_test_dev_news_tsv(args.data_dir, args.test_data_dir)
         
         #discuss_utils.plit_dev_behaviors(args.train_data_dir, args.test_data_dir)
         
-        discuss_utils.regen_test_dev_news_tsv_for_authorid(args.data_dir, args.train_data_dir)
-        discuss_utils.regen_test_dev_news_tsv_for_authorid(args.data_dir, args.test_data_dir)
+        #discuss_utils.regen_test_dev_news_tsv_for_authorid(args.data_dir, args.train_data_dir)
+        #discuss_utils.regen_test_dev_news_tsv_for_authorid(args.data_dir, args.test_data_dir)
+        
+        #discuss_utils.regen_base_news_tsv_for_authorid(args.data_dir)
+        
+        discuss_utils.re_split_test_dev_news_tsv(args.data_dir, args.train_data_dir)
+        discuss_utils.re_split_test_dev_news_tsv(args.data_dir, args.test_data_dir)
         
     elif args.mode == 'gen_entity_lookup':
         discuss_utils.gen_entity_lookup(args.data_dir, update_news_tsv=args.gen_entity_update_news_tsv)
