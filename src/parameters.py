@@ -57,5 +57,12 @@ def parse_args():
     parser.add_argument("--use_subcategory", type=utils.str2bool, default=False)
     parser.add_argument("--category_emb_dim", type=int, default=100)
 
+    parser.add_argument("--skip_title", type=utils.str2bool, default=False)
+
     args = parser.parse_args()
+
+    if args.skip_title:
+        args.model_dir += '_skiptitle'
+
+    args.model_dir += '_bpemb'
     return args
