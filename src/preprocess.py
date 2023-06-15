@@ -2,8 +2,6 @@ from collections import Counter
 from tqdm import tqdm
 import numpy as np
 #from nltk.tokenize import word_tokenize
-#from bpemb import BPEmb
-from transformers import AutoModel, AutoTokenizer
 from utils import update_dict
 
 

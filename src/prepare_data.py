@@ -2,7 +2,6 @@ import os
 from tqdm import tqdm
 import random
 import logging
-from bpemb import BPEmb
 import gzip
 
 
@@ -69,6 +68,7 @@ def prepare_testing_data(test_data_dir, nGPU):
 
 
 def generate_bpemb_embeddings(embedding_path):
+    from bpemb import BPEmb
     logging.info(f'Writing embedding txt to {embedding_path}')
     multibpemb = BPEmb(lang="multi", vs=320000, dim=300)
     with open(embedding_path, "w") as f:

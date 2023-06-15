@@ -4,7 +4,6 @@ import sys
 import os
 import numpy as np
 import logging
-from transformers import AutoModel, AutoTokenizer
 from tqdm import tqdm
 import torch
 from utils import update_dict
@@ -298,6 +297,8 @@ def split_dev_behaviors(train_data_dir, test_data_dir):
 
 _embeddings_npyz = 'embeddings.npz'
 def create_bert_embeddings_file(data_dir):
+    from transformers import AutoModel, AutoTokenizer
+
     data_dir = Path(data_dir)
     tokenizer = AutoTokenizer.from_pretrained('bert-base-chinese')
     bert = AutoModel.from_pretrained('bert-base-chinese')
