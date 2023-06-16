@@ -79,10 +79,17 @@ def parse_args():
     parser.add_argument("--test_users", type=str, choices=['all', 'seen', 'unseen'], default='all')
     parser.add_argument("--conv1d_kernel_size", type=int, default=3)
 
+    parser.add_argument("--skip_title", type=utils.str2bool, default=False)
+
     args = parser.parse_args()
+    args.model_dir = args.model_dir + '_bpemb_forum'
+
     if args.use_authorid:
         args.model_dir = args.model_dir + '_authorid'
         
+    if args.skip_title:
+        args.model_dir += '_skiptitle'
+
     if args.size in ['tiny', 'small']:
         if args.size not in args.train_data_dir:
             args.train_data_dir = args.train_data_dir + "_" + args.size
@@ -96,5 +103,6 @@ def parse_args():
 
     else:
         setattr(args, 'frac', None)
+
         
     return args

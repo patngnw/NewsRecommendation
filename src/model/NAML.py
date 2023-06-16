@@ -28,19 +28,24 @@ class NewsEncoder(nn.Module):
             padding=1
         )
         self.attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)
+        self.skip_title = args.skip_title
+
 
     def forward(self, x, mask=None):
         '''
             x: batch_size * news_num_in_batch, word_num + 2
             mask: batch_size, word_num + 2
         '''
-        title = torch.narrow(x, -1, 0, self.num_words_title).long()  # shape: 160, word_num
-        word_vecs = F.dropout(self.embedding_matrix(title),  # self.embedding_matrix(title): (160, 20, 300)
-                              p=self.drop_rate,
-                              training=self.training)  # word_vecs: (160, 20, 300)
-        context_word_vecs = self.cnn(word_vecs.transpose(1, 2)).transpose(1, 2)  # context_word_vecs: (160, 20, 400)
-        title_vecs = self.attn(context_word_vecs, mask)  # title_vecs: (160, 400)
-        all_vecs = [title_vecs]
+        if self.skip_title:
+            all_vecs = []
+        else:
+            title = torch.narrow(x, -1, 0, self.num_words_title).long()  # shape: 160, word_num
+            word_vecs = F.dropout(self.embedding_matrix(title),  # self.embedding_matrix(title): (160, 20, 300)
+                                  p=self.drop_rate,
+                                  training=self.training)  # word_vecs: (160, 20, 300)
+            context_word_vecs = self.cnn(word_vecs.transpose(1, 2)).transpose(1, 2)  # context_word_vecs: (160, 20, 400)
+            title_vecs = self.attn(context_word_vecs, mask)  # title_vecs: (160, 400)
+            all_vecs = [title_vecs]
 
         start = self.num_words_title
         if self.use_category:
