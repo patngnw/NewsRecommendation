@@ -30,6 +30,7 @@ def read_news(news_path, args, mode='train'):
 
             title = title.lower()
             title = multibpemb.encode(title)  # list: (num of token in title)
+            title_entities = [] if len(title_entities) == 0 else title_entities.split(',')
             update_dict(news, doc_id, [title, category, authorid, title_entities])
             if mode == 'train':
                 if args.use_category:
@@ -78,7 +79,7 @@ def get_doc_input(news, news_index, category_dict, authorid_dict, entity_dict, w
         if args.use_entity:
             # Use the 1st one
             if len(entities) > 0:
-                entity = entities.split(',')[0]
+                entity = entities[0]
             else:
                 entity = 0
             news_entity[doc_index, 0] = entity_dict.get(entity, 0)

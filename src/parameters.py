@@ -62,6 +62,7 @@ def parse_args():
     parser.add_argument("--load_ckpt_name", type=str, default=None)
     parser.add_argument("--use_category", type=utils.str2bool, default=True)
     parser.add_argument("--use_authorid", type=utils.str2bool, default=True)
+    parser.add_argument("--use_entity", type=utils.str2bool, default=True)
     parser.add_argument("--category_emb_dim", type=int, default=100)
     parser.add_argument("--show_news_doc_sim", type=utils.str2bool, default=False)
     

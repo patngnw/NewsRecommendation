@@ -61,6 +61,7 @@ class NewsEncoder(nn.Module):
             authorid = torch.narrow(x, -1, start, 1).squeeze(dim=-1).long()
             authorid_vecs = self.authorid_dense(self.authorid_emb(authorid))
             all_vecs.append(authorid_vecs)
+            start += 1
         if self.use_entity:
             entity = torch.narrow(x, -1, start, 1).long().reshape(-1, 1).squeeze()
             entity_vecs = self.entity_dense(self.entity_emb(entity))

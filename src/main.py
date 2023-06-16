@@ -69,7 +69,7 @@ def train(rank, args):
 
     news_title, news_category, news_authorid, news_entity = get_doc_input(
         news, news_index, category_dict, authorid_dict, entity_dict, word_dict, args)
-    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid] if x is not None], axis=-1)
+    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid, news_entity] if x is not None], axis=-1)
 
     if rank == 0:
         logging.info('Initializing word embedding matrix...')
@@ -208,7 +208,7 @@ def test(rank, args):
     # authorid_dict = {}  # Dict: key=authorid, value=idx
     news_title, news_category, news_authorid, news_entity = get_doc_input(
         news, news_index, category_dict, authorid_dict, entity_dict, word_dict, args)
-    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid] if x is not None], axis=-1)
+    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid, news_entity] if x is not None], axis=-1)
 
     news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 1 + 1) (e.g. )
     news_dataloader = DataLoader(news_dataset,
