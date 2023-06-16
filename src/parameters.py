@@ -110,4 +110,10 @@ def parse_args():
     if args.use_entity:
         args.model_dir += '_entity'
 
+    if args.news_dim != parser.get_default('news_dim'):
+        args.model_dir += f'_news_dim{args.news_dim}'
+
+    if args.category_emb_dim != parser.get_default('category_emb_dim'):
+        args.model_dir += f'_cat_emb_dim{args.category_emb_dim}'
+
     return args

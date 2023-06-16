@@ -87,13 +87,13 @@ class UserEncoder(nn.Module):
             news_vecs: batch_size, history_num, news_dim
             log_mask: batch_size, history_num
         '''
-        bz = news_vecs.shape[0]
+        bz = news_vecs.shape[0]   # batch size
         if self.args.user_log_mask:
             user_vec = self.attn(news_vecs, log_mask)
         else:
             padding_doc = self.pad_doc.unsqueeze(dim=0).expand(bz, self.args.user_log_length, -1)
             news_vecs = news_vecs * log_mask.unsqueeze(dim=-1) + padding_doc * (1 - log_mask.unsqueeze(dim=-1))
-            user_vec = self.attn(news_vecs)
+            user_vec = self.attn(news_vecs)   # batch size, 400
         return user_vec
 
 
@@ -122,10 +122,10 @@ class Model(torch.nn.Module):
         '''
         num_words = history.shape[-1]
         candidate_news = candidate.reshape(-1, num_words)
-        candidate_news_vecs = self.news_encoder(candidate_news).reshape(-1, 1 + self.args.npratio, self.args.news_dim)
+        candidate_news_vecs = self.news_encoder(candidate_news).reshape(-1, 1 + self.args.npratio, self.args.news_dim)  # batch_size, 1+K, 400
 
         history_news = history.reshape(-1, num_words)
-        history_news_vecs = self.news_encoder(history_news).reshape(-1, self.args.user_log_length, self.args.news_dim)
+        history_news_vecs = self.news_encoder(history_news).reshape(-1, self.args.user_log_length, self.args.news_dim)  # batch_size, history_len, 400
 
         user_vec = self.user_encoder(history_news_vecs, history_mask)
         score = torch.bmm(candidate_news_vecs, user_vec.unsqueeze(dim=-1)).squeeze(dim=-1)
