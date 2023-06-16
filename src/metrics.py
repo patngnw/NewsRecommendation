@@ -27,3 +27,9 @@ def ctr_score(y_true, y_score, k=1):
     order = np.argsort(y_score)[::-1]
     y_true = np.take(y_true, order[:k])
     return np.mean(y_true)
+
+
+def hit_score(y_true, y_score, k=1):
+    order = np.argsort(y_score)[::-1]
+    y_true = np.take(y_true, order[:k])
+    return np.sum(y_true)

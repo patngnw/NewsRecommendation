@@ -11,7 +11,7 @@ import random
 from torch.utils.data import DataLoader
 import importlib
 import subprocess
-from metrics import roc_auc_score, ndcg_score, mrr_score
+from metrics import roc_auc_score, ndcg_score, hit_score
 
 import utils
 from parameters import parse_args
@@ -239,7 +239,8 @@ def test(rank, args):
     dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
 
     AUC = []
-    MRR = []
+    HIT5 = []
+    HIT10 = []
     nDCG5 = []
     nDCG10 = []
 
@@ -272,29 +273,31 @@ def test(rank, args):
                 score = score_by_candidate_news
 
             auc = roc_auc_score(label, score)
-            mrr = mrr_score(label, score)
+            hit5 = hit_score(label, score, k=5)
+            hit10 = hit_score(label, score, k=10)
             ndcg5 = ndcg_score(label, score, k=5)
             ndcg10 = ndcg_score(label, score, k=10)
 
             AUC.append(auc)
-            MRR.append(mrr)
+            HIT5.append(hit5/100)
+            HIT10.append(hit10/100)
             nDCG5.append(ndcg5)
             nDCG10.append(ndcg10)
 
         if cnt % args.log_steps == 0:
-            print_metrics(rank, local_sample_num, get_mean([AUC, MRR, nDCG5, nDCG10]))
+            print_metrics(rank, local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
 
     logging.info('[{}] local_sample_num: {}'.format(rank, local_sample_num))
     if is_distributed:
         local_sample_num = torch.tensor(local_sample_num).cuda(rank)
         dist.reduce(local_sample_num, dst=0, op=dist.ReduceOp.SUM)
-        local_metrics_sum = torch.FloatTensor(get_sum([AUC, MRR, nDCG5, nDCG10])).cuda(rank)
+        local_metrics_sum = torch.FloatTensor(get_sum([AUC, HIT5, HIT10, nDCG5, nDCG10])).cuda(rank)
         dist.reduce(local_metrics_sum, dst=0, op=dist.ReduceOp.SUM)
         if rank == 0:
             print_metrics('*', local_sample_num, local_metrics_sum / local_sample_num)
     else:
-        print('Metrics: AUC, MRR, nDCG5, nDCG10')
-        print_metrics('*', local_sample_num, get_mean([AUC, MRR, nDCG5, nDCG10]))
+        print('Metrics: AUC, HIT5, HIT10, nDCG5, nDCG10')
+        print_metrics('*', local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
 
 
 def test_baseline(args):
@@ -312,7 +315,8 @@ def test_baseline(args):
     dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
 
     AUC = []
-    MRR = []
+    HIT5 = []
+    HIT10 = []
     nDCG5 = []
     nDCG10 = []
 
@@ -331,21 +335,23 @@ def test_baseline(args):
             score = list(range(label.shape[0], 0, -1))  # score: (22,)
 
             auc = roc_auc_score(label, score)
-            mrr = mrr_score(label, score)
+            hit5 = hit_score(label, score, k=5)
+            hit10 = hit_score(label, score, k=10)
             ndcg5 = ndcg_score(label, score, k=5)
             ndcg10 = ndcg_score(label, score, k=10)
 
             AUC.append(auc)
-            MRR.append(mrr)
+            HIT5.append(hit5/100)
+            HIT10.append(hit10/100)
             nDCG5.append(ndcg5)
             nDCG10.append(ndcg10)
 
         if cnt % args.log_steps == 0:
-            print_metrics(rank, local_sample_num, get_mean([AUC, MRR, nDCG5, nDCG10]))
+            print_metrics(rank, local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
 
     logging.info('[{}] local_sample_num: {}'.format(rank, local_sample_num))
-    print('Metrics: AUC, MRR, nDCG5, nDCG10')
-    print_metrics('*', local_sample_num, get_mean([AUC, MRR, nDCG5, nDCG10]))
+    print('Metrics: AUC, HIT5, HIT10, nDCG5, nDCG10')
+    print_metrics('*', local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
 
 if __name__ == "__main__":
     utils.setuplogger()
