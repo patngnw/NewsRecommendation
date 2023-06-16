@@ -22,7 +22,7 @@ def parse_args():
                                  'gen_entity_lookup',
                                  'split_data',
                                  'test_baseline',
-                                 'ad_hoc'])
+                                 'adhoc'])
     parser.add_argument(
         "--train_data_dir",
         type=str,
@@ -107,5 +107,7 @@ def parse_args():
     else:
         setattr(args, 'frac', None)
 
-        
+    if args.use_entity:
+        args.model_dir += '_entity'
+
     return args

@@ -6,20 +6,24 @@ from .model_utils import AttentionPooling
 
 
 class NewsEncoder(nn.Module):
-    def __init__(self, args, embedding_matrix, num_category, num_authorid):
+    def __init__(self, args, embedding_matrix, num_category, num_authorid, num_entity):
         super(NewsEncoder, self).__init__()
         self.embedding_matrix = embedding_matrix
         self.drop_rate = args.drop_rate
         self.num_words_title = args.num_words_title
         self.use_category = args.use_category
         self.use_authorid = args.use_authorid
+        self.use_entity = args.use_entity
         if args.use_category:
             self.category_emb = nn.Embedding(num_category + 1, args.category_emb_dim, padding_idx=0)
             self.category_dense = nn.Linear(args.category_emb_dim, args.news_dim)
         if args.use_authorid:
             self.authorid_emb = nn.Embedding(num_authorid + 1, args.category_emb_dim, padding_idx=0)
             self.authorid_dense = nn.Linear(args.category_emb_dim, args.news_dim)
-        if args.use_category or args.use_authorid:
+        if args.use_entity:
+            self.entity_emb = nn.Embedding(num_entity + 1, args.category_emb_dim, padding_idx=0)
+            self.entity_dense = nn.Linear(args.category_emb_dim, args.news_dim)
+        if args.use_category or args.use_authorid or args.use_entity:
             self.final_attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)
         self.cnn = nn.Conv1d(
             in_channels=args.word_embedding_dim,
@@ -57,6 +61,11 @@ class NewsEncoder(nn.Module):
             authorid = torch.narrow(x, -1, start, 1).squeeze(dim=-1).long()
             authorid_vecs = self.authorid_dense(self.authorid_emb(authorid))
             all_vecs.append(authorid_vecs)
+        if self.use_entity:
+            entity = torch.narrow(x, -1, start, 1).long().reshape(-1, 1).squeeze()
+            entity_vecs = self.entity_dense(self.entity_emb(entity))
+            all_vecs.append(entity_vecs)
+            start += 1
 
         if len(all_vecs) == 1:
             news_vecs = all_vecs[0]
@@ -89,15 +98,18 @@ class UserEncoder(nn.Module):
 
 
 class Model(torch.nn.Module):
-    def __init__(self, args, embedding_matrix, num_category, num_authorid, **kwargs):
+    def __init__(self, args, embedding_matrix, num_category, num_authorid, num_entity, **kwargs):
         super(Model, self).__init__()
         self.args = args
-        pretrained_word_embedding = torch.from_numpy(embedding_matrix).float()
-        word_embedding = nn.Embedding.from_pretrained(pretrained_word_embedding,
-                                                      freeze=args.freeze_embedding,
-                                                      padding_idx=0)
+        if args.skip_title:
+            word_embedding = None
+        else:
+            pretrained_word_embedding = torch.from_numpy(embedding_matrix).float()
+            word_embedding = nn.Embedding.from_pretrained(pretrained_word_embedding,
+                                                          freeze=args.freeze_embedding,
+                                                          padding_idx=0)
 
-        self.news_encoder = NewsEncoder(args, word_embedding, num_category, num_authorid)
+        self.news_encoder = NewsEncoder(args, word_embedding, num_category, num_authorid, num_entity)
         self.user_encoder = UserEncoder(args)
         self.loss_fn = nn.CrossEntropyLoss()
 

@@ -246,8 +246,22 @@ def regen_test_dev_news_tsv(base_data_dir, data_dir):
     logging.info(f'Writing to {output_path}')    
     df_tids_info.loc[df_tids_info.tid.isin(df_seen_tids.tid) , _news_header]\
         .to_csv(output_path, sep='\t', index=False, header=None, encoding='utf-8')
-        
-        
+
+
+def re_split_test_dev_news_tsv(base_data_dir, data_dir):
+    base_data_dir = Path(base_data_dir)
+    data_dir = Path(data_dir)
+
+    df_base_news = pd.read_csv(base_data_dir / _news_tsv, delimiter='\t', names=_news_header, dtype={'tid': int})
+
+    df_seen_tids = pd.read_csv(data_dir / _seen_tids_csv)
+
+    output_path = data_dir / _news_tsv
+    logging.info(f'Writing to {output_path}')
+    df_base_news.loc[df_base_news.tid.isin(df_seen_tids.tid), _news_header] \
+        .to_csv(output_path, sep='\t', index=False, header=None, encoding='utf-8')
+
+
 def split_dev_behaviors(train_data_dir, test_data_dir):
     train_data_dir = Path(train_data_dir)
     test_data_dir = Path(test_data_dir)
@@ -351,3 +365,21 @@ def gen_entity_lookup(data_dir, update_news_tsv=False):
 #     logging.info(f'Writing to {output_path}')    
 #     df_tids_info.loc[df_tids_info.tid.isin(df_seen_tids.tid) , _news_header]\
 #         .to_csv(output_path, sep='\t', index=False, header=None, encoding='utf-8')
+
+
+def regen_base_news_tsv_for_authorid(base_data_dir):
+    base_data_dir = Path(base_data_dir)
+
+    df_tids_info = pd.read_csv(base_data_dir / _tids_info_csv)
+
+    df_news = pd.read_csv(base_data_dir / _news_tsv, delimiter='\t', names=_news_header, dtype={'tid': int})
+    df_news['subject'] = df_news['subject'].str.replace(r'\s+|\n', ' ', regex=True)
+
+    df_news = df_news.drop(labels=['authorid'], axis='columns')
+
+    df_news = pd.merge(df_news, df_tids_info[['tid', 'authorid']], on='tid')
+
+    output_path = base_data_dir / _news_tsv
+    logging.info(f'Writing to {output_path}')
+    df_news[_news_header].to_csv(output_path, sep='\t', index=False, header=None, encoding='utf-8')
+    return
