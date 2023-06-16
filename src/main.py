@@ -47,7 +47,6 @@ def save_chkpt(model, ckpt_path, is_distributed, category_dict, authorid_dict, e
             'word_dict': word_dict,
     }
     torch.save(ckpt_dict, ckpt_path)
-    logging.info(f"Model saved to {ckpt_path}.")
 
 
 def train(rank, args):
@@ -190,7 +189,7 @@ def test(rank, args):
     dummy_embedding_matrix = np.zeros((len(word_dict) + 1, args.word_embedding_dim))
     module = importlib.import_module(f'model.{args.model}')
     model = module.Model(args, dummy_embedding_matrix, len(category_dict), len(authorid_dict), len(entity_dict))
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model.load_state_dict(checkpoint['model_state_dict'], strict=False)
     logging.info(f"Model loaded from {ckpt_path}")
 
     if args.enable_gpu:

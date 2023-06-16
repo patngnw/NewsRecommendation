@@ -6,11 +6,11 @@ model_dir='../model/NAML'
 model='NAML'
 use_category=True
 use_authorid=True
-use_entity=True
+use_entity=False
 enable_gpu=True
 conv1d_kernel_size=3
 skip_title=True
-jitao_score_method=False
+jitao_score_method=True
 
 
 if [ ${mode} == train ]
