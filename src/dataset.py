@@ -31,7 +31,7 @@ class DatasetTrain(IterableDataset):
         sess_neg = line[5].split()
 
         click_docs, log_mask = self.pad_to_fix_len(self.trans_to_nindex(click_docs), self.args.user_log_length)
-        user_feature = self.news_combined[click_docs]
+        user_feature = self.news_combined[click_docs]  # shape: (user_log_length, 20+1+1+1)
 
         pos = self.trans_to_nindex(sess_pos)
         neg = self.trans_to_nindex(sess_neg)

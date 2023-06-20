@@ -2,7 +2,6 @@ from collections import Counter
 from tqdm import tqdm
 import numpy as np
 #from nltk.tokenize import word_tokenize
-from bpemb import BPEmb
 from utils import update_dict
 
 
@@ -13,8 +12,10 @@ def read_news(news_path, args, mode='train'):
     entity_dict = {}
     news_index = {}  # Dict: key=news_id, value=idx
     word_cnt = Counter()  # Count of appearance of each token in training data
-    
-    multibpemb = BPEmb(lang="multi", vs=320000, dim=300)
+
+    if not args.skip_title:
+        from bpemb import BPEmb
+        multibpemb = BPEmb(lang="multi", vs=320000, dim=300)
 
     with open(news_path, 'r', encoding='utf-8') as f:
         for line in tqdm(f):
@@ -28,8 +29,12 @@ def read_news(news_path, args, mode='train'):
                 raise
             update_dict(news_index, doc_id)
 
-            title = title.lower()
-            title = multibpemb.encode(title)  # list: (num of token in title)
+            if not args.skip_title:
+                title = title.lower()
+                title = multibpemb.encode(title)  # list: (num of token in title)
+            else:
+                title = []
+
             title_entities = [] if len(title_entities) == 0 else title_entities.split(',')
             update_dict(news, doc_id, [title, category, authorid, title_entities])
             if mode == 'train':

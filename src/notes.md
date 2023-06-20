@@ -1,0 +1,35 @@
+### Training Steps
+- Prepare Training Data (done once only):
+  - Convert the Behaviors data from the MIND dataset format into one used for training
+  - For line in behaviors.tsv, we generate *one training sample* **per** positive item found
+    - For each training sample, we randomly pick 4 (args.npratio) negative items from behaviors.tsv
+- Analyze **News** in the **training** set
+  - Loop thru all the news and generate the following dicts:
+    - news: key=news_id, value=[list_of_title_tokens, cat, authorid, list_of_entities]
+    - news_index: key=1-based idx, value=news_id
+    - category_dict: key=1-based idx, value=cat_str
+    - authorid_dict: key-1-based idx, value=authorid
+    - entity_dict: key=1-based idx, value=entity_id
+    - word_dict: key=1-based idx, value=unique word token
+- Convert *analyzed* **News** to Numpy matrices
+  - Loop thru all the news and generate the following Numpy matrices:
+    - Note:
+      - no. of rows == total no. of news + 1 (1 is for the unknown news during inference)
+      - 1st row is for the unknown, 2nd row is for the 1st news, 3 row is for 2nd news, etc.
+    - news_title: 
+      - news_title: (no. of news + 1, args.num_words_title), value=idx on word token based on word_dict
+      - news_category: (no. of news + 1, 1), value=idx of cat based on category_dict
+      - news_authorid: (no. of news + 1, 1), value=idx of authorid based on authorid_dict
+      - news_entity: (no. of news + 1, 1), value=idx of 1st entity based on entity_dict
+- Combine all these matrices into a single one:
+  - Shape = (no. of news + 1, 20 + 1 + 1 + 1)
+  - Note:
+    - args.num_words_title = 20
+- Create a DataLoader (based on an iterable Dataset we create):
+  - When retrieving one sample, our dataset will return the following:
+    - user_feature (user *reading* history): (50, 23) (args.user_log_length=50)
+    - log_mask: which items in user_feature are valid (others are just zeros due to length padding)
+    - news_feature:
+      - A mix of negative items and one positive item
+      - Shape = (5, 23)
+    - label: which row in news_features represents the positive item 

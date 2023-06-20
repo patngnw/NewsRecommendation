@@ -46,7 +46,7 @@ def get_reads(reads_path, nrows=None):
 # https://github.com/msnews/msnews.github.io/blob/master/assets/doc/introduction.md
 def get_behaviors_df(df_impressions, df_reads):
     df_reads = df_reads.assign(clicked=1)
-    df_impressions =  df_impressions.rename(columns={'impressions': 'tid'})  # for merging
+    df_impressions = df_impressions.rename(columns={'impressions': 'tid'})  # for merging
     df = pd.merge(df_impressions, df_reads[['user_id', 'tid', 'date', 'clicked']], on=['user_id', 'date', 'tid'], how='left')
     df.loc[pd.isna(df.clicked), ['clicked']] = 0
     df['clicked'] = df['clicked'].astype(int)

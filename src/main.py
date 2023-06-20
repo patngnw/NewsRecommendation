@@ -114,7 +114,7 @@ def train(rank, args):
     logging.info('Training...')
     for ep in range(args.start_epoch, args.epochs):
         loss = 0.0
-        accuary = 0.0
+        accuracy = 0.0
         for cnt, (log_ids, log_mask, input_ids, targets) in enumerate(dataloader):
             if args.enable_gpu:
                 log_ids = log_ids.cuda(rank, non_blocking=True)
@@ -124,7 +124,7 @@ def train(rank, args):
 
             bz_loss, y_hat = model(log_ids, log_mask, input_ids, targets)
             loss += bz_loss.data.float()
-            accuary += utils.acc(targets, y_hat)
+            accuracy += utils.acc(targets, y_hat)
             optimizer.zero_grad()
             bz_loss.backward()
             optimizer.step()
@@ -132,7 +132,7 @@ def train(rank, args):
             if cnt % args.log_steps == 0:
                 logging.info(
                     '[{}][{}] Ed: {}, train_loss: {:.5f}, acc: {:.5f}'.format(
-                        rank, ep, cnt * args.batch_size, loss.data / cnt, accuary / cnt)
+                        rank, ep, cnt * args.batch_size, loss.data / cnt, accuracy / cnt)
                 )
 
             if rank == 0 and cnt != 0 and cnt % args.save_steps == 0:

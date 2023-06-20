@@ -8,37 +8,43 @@ from .model_utils import AttentionPooling
 class NewsEncoder(nn.Module):
     def __init__(self, args, embedding_matrix, num_category, num_authorid, num_entity):
         super(NewsEncoder, self).__init__()
-        self.embedding_matrix = embedding_matrix
-        self.drop_rate = args.drop_rate
         self.num_words_title = args.num_words_title
         self.use_category = args.use_category
         self.use_authorid = args.use_authorid
         self.use_entity = args.use_entity
+
         if args.use_category:
             self.category_emb = nn.Embedding(num_category + 1, args.category_emb_dim, padding_idx=0)
             self.category_dense = nn.Linear(args.category_emb_dim, args.news_dim)
+
         if args.use_authorid:
             self.authorid_emb = nn.Embedding(num_authorid + 1, args.category_emb_dim, padding_idx=0)
             self.authorid_dense = nn.Linear(args.category_emb_dim, args.news_dim)
+
         if args.use_entity:
             self.entity_emb = nn.Embedding(num_entity + 1, args.category_emb_dim, padding_idx=0)
             self.entity_dense = nn.Linear(args.category_emb_dim, args.news_dim)
+
         if args.use_category or args.use_authorid or args.use_entity:
             self.final_attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)
-        self.cnn = nn.Conv1d(
-            in_channels=args.word_embedding_dim,
-            out_channels=args.news_dim,
-            kernel_size=args.conv1d_kernel_size,
-            padding=1
-        )
-        self.attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)
+
         self.skip_title = args.skip_title
+        if not args.skip_title:
+            self.embedding_matrix = embedding_matrix
+            self.drop_rate = args.drop_rate
+            self.cnn = nn.Conv1d(
+                in_channels=args.word_embedding_dim,
+                out_channels=args.news_dim,
+                kernel_size=args.conv1d_kernel_size,
+                padding=1
+            )
+            self.attn = AttentionPooling(args.news_dim, args.news_query_vector_dim)
 
 
     def forward(self, x, mask=None):
         '''
-            x: batch_size * news_num_in_batch, word_num + 2
-            mask: batch_size, word_num + 2
+            x: batch_size * (1+K), news_feature_length (i.e. 23)
+            mask:
         '''
         if self.skip_title:
             all_vecs = []
@@ -57,11 +63,13 @@ class NewsEncoder(nn.Module):
             category_vecs = self.category_dense(self.category_emb(category))  # category_vecs: (160, 400)
             all_vecs.append(category_vecs)
             start += 1
+
         if self.use_authorid:
             authorid = torch.narrow(x, -1, start, 1).squeeze(dim=-1).long()
             authorid_vecs = self.authorid_dense(self.authorid_emb(authorid))
             all_vecs.append(authorid_vecs)
             start += 1
+
         if self.use_entity:
             entity = torch.narrow(x, -1, start, 1).long().reshape(-1, 1).squeeze()
             entity_vecs = self.entity_dense(self.entity_emb(entity))
@@ -73,6 +81,7 @@ class NewsEncoder(nn.Module):
         else:
             all_vecs = torch.stack(all_vecs, dim=1)
             news_vecs = self.final_attn(all_vecs)
+
         return news_vecs  # shape: 128, 400
 
 
@@ -88,13 +97,14 @@ class UserEncoder(nn.Module):
             news_vecs: batch_size, history_num, news_dim
             log_mask: batch_size, history_num
         '''
-        bz = news_vecs.shape[0]   # batch size
         if self.args.user_log_mask:
             user_vec = self.attn(news_vecs, log_mask)
         else:
+            bz = news_vecs.shape[0]  # batch size
             padding_doc = self.pad_doc.unsqueeze(dim=0).expand(bz, self.args.user_log_length, -1)
             news_vecs = news_vecs * log_mask.unsqueeze(dim=-1) + padding_doc * (1 - log_mask.unsqueeze(dim=-1))
             user_vec = self.attn(news_vecs)   # batch size, 400
+
         return user_vec
 
 
@@ -116,16 +126,16 @@ class Model(torch.nn.Module):
 
     def forward(self, history, history_mask, candidate, label):
         '''
-            history: batch_size, history_length, num_word_title
+            history: batch_size, history_length, num_word_title + 3
             history_mask: batch_size, history_length
             candidate: batch_size, 1+K, num_word_title
             label: batch_size, 1+K
         '''
-        num_words = history.shape[-1]
-        candidate_news = candidate.reshape(-1, num_words)
+        news_feature_len = history.shape[-1]
+        candidate_news = candidate.reshape(-1, news_feature_len)  # (batch_size * 1+K, news_feature_len)
         candidate_news_vecs = self.news_encoder(candidate_news).reshape(-1, 1 + self.args.npratio, self.args.news_dim)  # batch_size, 1+K, 400
 
-        history_news = history.reshape(-1, num_words)
+        history_news = history.reshape(-1, news_feature_len)
         history_news_vecs = self.news_encoder(history_news).reshape(-1, self.args.user_log_length, self.args.news_dim)  # batch_size, history_len, 400
 
         user_vec = self.user_encoder(history_news_vecs, history_mask)
