@@ -27,8 +27,8 @@ def get_mean(arr):
 def get_sum(arr):
     return [np.array(i).sum() for i in arr]
 
-def print_metrics(rank, cnt, x):
-    logging.info("[{}] {} samples: {}".format(rank, cnt, '\t'.join(["{:0.2f}".format(i * 100) for i in x])))
+def print_metrics(rank, cnt, sample_num, x):
+    logging.info("[{}][{}] {} samples: {}".format(rank, cnt, sample_num, '\t'.join(["{:0.2f}".format(i * 100) for i in x])))
 
 def save_chkpt(model, ckpt_path, is_distributed, category_dict, authorid_dict, entity_dict, word_dict, skip_news_encoder_embedding_matric=False):
     model_state_dict = {k: v for k, v in model.state_dict().items()}
@@ -208,7 +208,7 @@ def test(rank, args):
     news_title, news_category, news_authorid, news_entity = get_doc_input(
         news, news_index, category_dict, authorid_dict, entity_dict, word_dict, args)
     news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid, news_entity] if x is not None], axis=-1)
-
+    
     news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 1 + 1) (e.g. )
     news_dataloader = DataLoader(news_dataset,
                                  batch_size=args.batch_size,
@@ -295,7 +295,7 @@ def test(rank, args):
             nDCG10.append(ndcg10)
 
         if cnt % args.log_steps == 0:
-            print_metrics(rank, local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
+            print_metrics(rank, cnt, local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
 
     logging.info('[{}] local_sample_num: {}'.format(rank, local_sample_num))
     if is_distributed:
