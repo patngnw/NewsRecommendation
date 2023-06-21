@@ -50,18 +50,7 @@ def save_chkpt(model, ckpt_path, is_distributed, category_dict, authorid_dict, e
 
 
 def train(rank, args):
-    if rank is None:
-        is_distributed = False
-        rank = 0
-    else:
-        is_distributed = True
-
-    if is_distributed:
-        utils.setuplogger()
-        dist.init_process_group('nccl', world_size=args.nGPU, init_method='env://', rank=rank)
-
-    if args.enable_gpu:
-        torch.cuda.set_device(rank)
+    rank, is_distributed = torch_setup(rank, args)
 
     news, news_index, category_dict, authorid_dict, word_dict, entity_dict = read_news(
         os.path.join(args.train_data_dir, 'news.tsv'), args, mode='train')
@@ -148,16 +137,7 @@ def train(rank, args):
             logging.info(f"Model saved to {ckpt_path}.")
 
 
-def get_test_behavior_path(rank, args):
-    data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv.gz')
-    if args.test_users == 'seen':
-        data_file_path = data_file_path.replace('.tsv', '.seen_users.tsv')
-    elif args.test_users == 'unseen':
-        data_file_path = data_file_path.replace('.tsv', '.unseen_users.tsv')
-        
-    return data_file_path
-
-def test(rank, args):
+def torch_setup(rank, args):
     if rank is None:
         is_distributed = False
         rank = 0
@@ -170,6 +150,21 @@ def test(rank, args):
 
     if args.enable_gpu:
         torch.cuda.set_device(rank)
+        
+    return rank, is_distributed
+
+
+def get_test_behavior_path(rank, args):
+    data_file_path = os.path.join(args.test_data_dir, f'behaviors_{rank}.tsv.gz')
+    if args.test_users == 'seen':
+        data_file_path = data_file_path.replace('.tsv', '.seen_users.tsv')
+    elif args.test_users == 'unseen':
+        data_file_path = data_file_path.replace('.tsv', '.unseen_users.tsv')
+        
+    return data_file_path
+
+def test(rank, args):
+    rank, is_distributed = torch_setup(rank, args)
 
     ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
     model, authorid_dict, entity_dict, category_dict, word_dict = load_checkpoint_for_inference(rank, args, ckpt_path)
@@ -213,8 +208,8 @@ def test(rank, args):
     # log_vecs: (batch_size, 50, 400), user feature based on clicked doc history
     # log_mask: log_vecs are padded; log_mask tells which items are padded (0) or not (1)
     # candidate_news_vecs: len=batch_size; vectors (from news_encoder) of all candidate news (from that sample row)
-    # labels:len=batch_size; each item is a list and contain the label (0/1) of each candidate news
-    for cnt, (log_vecs, log_mask, candidate_news_vecs, labels) in enumerate(dataloader):
+    # label_vecs:len=batch_size; each item is a list and contain the label (0/1) of each candidate news
+    for cnt, (log_vecs, log_mask, candidate_news_vecs, label_vecs) in enumerate(dataloader):
         local_sample_num += log_vecs.shape[0]
 
         if args.enable_gpu:
@@ -223,15 +218,15 @@ def test(rank, args):
 
         user_vecs = model.user_encoder(log_vecs, log_mask).to(torch.device("cpu")).detach().numpy()
 
-        for inner_cnt, user_vec, candidate_news_vec, label in zip(range(len(user_vecs)), user_vecs, candidate_news_vecs, labels):
-            if label.mean() == 0 or label.mean() == 1:
+        for inner_cnt, user_vec, candidate_news_vec, label_vec in zip(range(len(user_vecs)), user_vecs, candidate_news_vecs, label_vecs):
+            if label_vec.mean() == 0 or label_vec.mean() == 1:
                 continue
 
-            score = infer_score(user_vec, candidate_news_vec, args)
+            score_vec = infer_score_vec(user_vec, candidate_news_vec, args)
             if cnt == 0 and inner_cnt == 1:
-                print(f"score of 2nd row: {score}")
+                print(f"score of 2nd row: {score_vec}")
 
-            update_metrics(AUC, HIT5, HIT10, nDCG5, nDCG10, label, score)
+            update_metrics(label_vec, score_vec, AUC, HIT5, HIT10, nDCG5, nDCG10)
 
         if cnt % args.log_steps == 0:
             print_metrics(rank, cnt, local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
@@ -249,12 +244,12 @@ def test(rank, args):
         print_metrics('*', '*', local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
 
 
-def update_metrics(AUC, HIT5, HIT10, nDCG5, nDCG10, label, score):
-    auc = roc_auc_score(label, score)
-    hit5 = hit_score(label, score, k=5)
-    hit10 = hit_score(label, score, k=10)
-    ndcg5 = ndcg_score(label, score, k=5)
-    ndcg10 = ndcg_score(label, score, k=10)
+def update_metrics(label_vec, score_vec, AUC, HIT5, HIT10, nDCG5, nDCG10):
+    auc = roc_auc_score(label_vec, score_vec)
+    hit5 = hit_score(label_vec, score_vec, k=5)
+    hit10 = hit_score(label_vec, score_vec, k=10)
+    ndcg5 = ndcg_score(label_vec, score_vec, k=5)
+    ndcg10 = ndcg_score(label_vec, score_vec, k=10)
 
     AUC.append(auc)
     HIT5.append(hit5/100)
@@ -263,17 +258,17 @@ def update_metrics(AUC, HIT5, HIT10, nDCG5, nDCG10, label, score):
     nDCG10.append(ndcg10)
 
 
-def infer_score(user_vec, candidate_news_vec, args):
-    score = np.dot(candidate_news_vec, user_vec)  # candidate_news_vec: (20, 400); user_vec: (400,); score: (20,)
+def infer_score_vec(user_vec, candidate_news_vec, args):
+    score_vec = np.dot(candidate_news_vec, user_vec)  # candidate_news_vec: (20, 400); user_vec: (400,); score: (20,)
     if args.jitao_score_method:
-        score_sorted_idx = np.flip(np.argsort(score))  # Idx of item if we sort it in desc order
+        score_sorted_idx = np.flip(np.argsort(score_vec))  # Idx of item if we sort it in desc order
         score_by_candidate_news = list(range(candidate_news_vec.shape[0], 0, -1))
         for idx in score_sorted_idx[:args.jitao_topn]:
             score_by_candidate_news[idx] += args.jitao_boost
                     
-        score = score_by_candidate_news
+        score_vec = score_by_candidate_news
         
-    return score
+    return score_vec
 
 
 def load_checkpoint_for_inference(rank, args, ckpt_path):
@@ -362,12 +357,12 @@ def test_baseline(args):
     # labels: whether the candidate news is clicked or not
     for cnt, (labels) in enumerate(dataloader):
         local_sample_num += len(labels)
-        for label in labels:
-            if label.mean() == 0 or label.mean() == 1:
+        for label_vec in labels:
+            if label_vec.mean() == 0 or label_vec.mean() == 1:
                 continue
 
-            score = list(range(label.shape[0], 0, -1))  # score: (22,)
-            update_metrics(AUC, HIT5, HIT10, nDCG5, nDCG10, label, score)
+            score_vec = list(range(label_vec.shape[0], 0, -1))  # score: (22,)
+            update_metrics(label_vec, score_vec, AUC, HIT5, HIT10, nDCG5, nDCG10)
 
         if cnt % args.log_steps == 0:
             print_metrics(rank, cnt, local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
