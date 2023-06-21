@@ -55,16 +55,14 @@ def train(rank, args):
     news, news_index, category_dict, authorid_dict, word_dict, entity_dict = read_news(
         os.path.join(args.train_data_dir, 'news.tsv'), args, mode='train')
 
-    news_title, news_category, news_authorid, news_entity = get_doc_input(
-        news, news_index, category_dict, authorid_dict, entity_dict, word_dict, args)
-    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid, news_entity] if x is not None], axis=-1)
-
-    if rank == 0:
-        logging.info('Initializing word embedding matrix...')
+    news_combined = get_news_input_matrix(args, news, news_index, category_dict, authorid_dict, word_dict, entity_dict)
 
     if args.skip_title:
         embedding_matrix = None
     else:
+        if rank == 0:
+            logging.info('Initializing word embedding matrix...')
+
         embedding_matrix, have_word = utils.load_matrix(args.bpemb_embedding_path,
                                                         word_dict,
                                                         args.word_embedding_dim)
@@ -74,7 +72,7 @@ def train(rank, args):
             logging.info(f'Missing rate: {(len(word_dict) - len(have_word)) / len(word_dict)}')
 
     module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, embedding_matrix, len(category_dict), len(authorid_dict), len(entity_dict))
+    model = module.Model(args, embedding_matrix, num_category=len(category_dict), num_authorid=len(authorid_dict), num_entity=len(entity_dict))
 
     if args.load_ckpt_name is not None:
         ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
@@ -135,6 +133,15 @@ def train(rank, args):
             ckpt_path = os.path.join(args.model_dir, f'epoch-{ep+1}.pt')
             save_chkpt(model, ckpt_path, is_distributed, category_dict, authorid_dict, entity_dict, word_dict)
             logging.info(f"Model saved to {ckpt_path}.")
+
+def get_news_input_matrix(args, news, news_index, category_dict, authorid_dict, word_dict, entity_dict):
+    news_title, news_category, news_authorid, news_entity = get_doc_input(
+        news, news_index, category_dict, authorid_dict, entity_dict, word_dict, args)
+    if args.model == 'NAML':
+        news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid, news_entity] if x is not None], axis=-1)
+    else:
+        news_combined = np.concatenate([x for x in [news_title] if x is not None], axis=-1)
+    return news_combined
 
 
 def torch_setup(rank, args):
@@ -350,9 +357,7 @@ def gen_vecs_from_news_encoder(news_path, model, rank, category_dict, authorid_d
     
     # Note:
     # All the *_dict lookups were read from the saved model checkpoint 
-    news_title, news_category, news_authorid, news_entity = get_doc_input(
-        news, news_index, category_dict, authorid_dict, entity_dict, word_dict, args)
-    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid, news_entity] if x is not None], axis=-1)
+    news_combined = get_news_input_matrix(args, news, news_index, category_dict, authorid_dict, word_dict, entity_dict)
     
     news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 3)
     news_dataloader = DataLoader(news_dataset,

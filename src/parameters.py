@@ -15,7 +15,7 @@ def parse_args():
     parser.add_argument("--mode",
                         type=str,
                         default="train",
-                        choices=['train', 'test', 'train_test', 
+                        choices=['train', 'test', 'train_test', 'test_one', 
                                  'create_embeddings',
                                  'create_bert_embeddings',
                                  'gen_discuss_data',
