@@ -80,6 +80,12 @@ class DatasetTest(DatasetTrain):
             file_iter = gzip.open(self.filename, 'rt', encoding='utf-8')
         else:
             file_iter = open(self.filename)
+
+        if self.args.test_rows:
+            rows = [next(file_iter) for _ in range(self.args.test_rows)]
+            file_iter.close()
+            file_iter = rows
+            
         return map(self.line_mapper, file_iter)
 
 

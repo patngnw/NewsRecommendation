@@ -85,6 +85,9 @@ def parse_args():
 
     parser.add_argument("--skip_title", type=utils.str2bool, default=False)
 
+    # How many rows to use for testing
+    parser.add_argument("--test_rows", type=int, default=None)
+
     args = parser.parse_args()
     args.model_dir = args.model_dir + '_bpemb_forum'
 

@@ -175,58 +175,12 @@ def test(rank, args):
         ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
 
     assert ckpt_path is not None, 'No checkpoint found.'
-    checkpoint = torch.load(ckpt_path, map_location='cpu')
+    model, authorid_dict, entity_dict, category_dict, word_dict = load_checkpoint_for_inference(rank, args, ckpt_path)
 
-    entity_dict = authorid_dict = dict()
-    category_dict = checkpoint['category_dict']
-    word_dict = checkpoint['word_dict']
-
-    if args.use_authorid:
-        authorid_dict = checkpoint['authorid_dict']
-    if args.use_entity:
-        entity_dict = checkpoint['entity_dict']
-
-    dummy_embedding_matrix = np.zeros((len(word_dict) + 1, args.word_embedding_dim))
-    module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, dummy_embedding_matrix, len(category_dict), len(authorid_dict), len(entity_dict))
+    test_news_vecs, news_index = gen_vecs_from_news_encoder(
+        os.path.join(args.test_data_dir, 'news.tsv'),
+        model, rank, category_dict, authorid_dict, entity_dict, word_dict, args)
     
-    # Note:
-    # The embedding matrix is also loaded from the checkpoint
-    model.load_state_dict(checkpoint['model_state_dict'], strict=False)
-    logging.info(f"Model loaded from {ckpt_path}")
-
-    if args.enable_gpu:
-        model.cuda(rank)
-
-    model.eval()
-    torch.set_grad_enabled(False)
-
-    # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, authorid, entity ]
-    # news_index = {}  # Dict: key=news_id, value=idx
-    news, news_index = read_news(os.path.join(args.test_data_dir, 'news.tsv'), args, mode='test')
-    
-    # Note:
-    # All the *_dict lookups were read from the saved model checkpoint 
-    news_title, news_category, news_authorid, news_entity = get_doc_input(
-        news, news_index, category_dict, authorid_dict, entity_dict, word_dict, args)
-    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid, news_entity] if x is not None], axis=-1)
-    
-    news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 3)
-    news_dataloader = DataLoader(news_dataset,
-                                 batch_size=args.batch_size,
-                                 num_workers=4)
-
-    test_news_vecs = []
-    with torch.no_grad():
-        for input_ids in tqdm(news_dataloader):  # news_dataloader loads directly from news_combined
-            if args.enable_gpu:
-                input_ids = input_ids.cuda(rank)
-            # input_ids: shape = (128, 22)    
-            candidate_news_vec = model.news_encoder(input_ids)
-            candidate_news_vec = candidate_news_vec.to(torch.device("cpu")).detach().numpy()
-            test_news_vecs.extend(candidate_news_vec)  # news_vec: (128, 400)
-
-    test_news_vecs = np.array(test_news_vecs)  # shape:  (num_of_news, 400)
     logging.info("news scoring num: {}".format(test_news_vecs.shape[0]))
 
     if args.show_news_doc_sim and rank == 0:
@@ -310,11 +264,67 @@ def test(rank, args):
         local_metrics_sum = torch.FloatTensor(get_sum([AUC, HIT5, HIT10, nDCG5, nDCG10])).cuda(rank)
         dist.reduce(local_metrics_sum, dst=0, op=dist.ReduceOp.SUM)
         if rank == 0:
-            print_metrics('*', local_sample_num, local_metrics_sum / local_sample_num)
+            print_metrics('*', cnt, local_sample_num, local_metrics_sum / local_sample_num)
     else:
         print('Metrics: AUC, HIT5, HIT10, nDCG5, nDCG10')
-        print_metrics('*', local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
+        print_metrics('*', '*', local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
 
+def load_checkpoint_for_inference(rank, args, ckpt_path):
+    checkpoint = torch.load(ckpt_path, map_location='cpu')
+
+    entity_dict = authorid_dict = dict()
+    category_dict = checkpoint['category_dict']
+    word_dict = checkpoint['word_dict']
+
+    if args.use_authorid:
+        authorid_dict = checkpoint['authorid_dict']
+    if args.use_entity:
+        entity_dict = checkpoint['entity_dict']
+
+    dummy_embedding_matrix = np.zeros((len(word_dict) + 1, args.word_embedding_dim))
+    module = importlib.import_module(f'model.{args.model}')
+    model = module.Model(args, dummy_embedding_matrix, len(category_dict), len(authorid_dict), len(entity_dict))
+    
+    # Note:
+    # The embedding matrix is also loaded from the checkpoint
+    model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+    logging.info(f"Model loaded from {ckpt_path}")
+
+    if args.enable_gpu:
+        model.cuda(rank)
+
+    model.eval()
+    torch.set_grad_enabled(False)
+    return model, authorid_dict, entity_dict, category_dict, word_dict
+
+
+def gen_vecs_from_news_encoder(news_path, model, rank, category_dict, authorid_dict, entity_dict, word_dict, args):
+    # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, authorid, entity ]
+    # news_index = {}  # Dict: key=news_id, value=idx
+    news, news_index = read_news(news_path, args, mode='test')
+    
+    # Note:
+    # All the *_dict lookups were read from the saved model checkpoint 
+    news_title, news_category, news_authorid, news_entity = get_doc_input(
+        news, news_index, category_dict, authorid_dict, entity_dict, word_dict, args)
+    news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid, news_entity] if x is not None], axis=-1)
+    
+    news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 3)
+    news_dataloader = DataLoader(news_dataset,
+                                 batch_size=args.batch_size,
+                                 num_workers=4)
+    news_vecs = []
+    with torch.no_grad():
+        for input_ids in tqdm(news_dataloader):  # news_dataloader loads directly from news_combined
+            if args.enable_gpu:
+                input_ids = input_ids.cuda(rank)
+            # input_ids: shape = (128, 22)    
+            candidate_news_vec = model.news_encoder(input_ids)
+            candidate_news_vec = candidate_news_vec.to(torch.device("cpu")).detach().numpy()
+            news_vecs.extend(candidate_news_vec)  # news_vec: (128, 400)
+
+    news_vecs = np.array(news_vecs)  # shape:  (num_of_news, 400)
+    return news_vecs, news_index
 
 def test_baseline(args):
     rank = 0
@@ -363,11 +373,11 @@ def test_baseline(args):
             nDCG10.append(ndcg10)
 
         if cnt % args.log_steps == 0:
-            print_metrics(rank, local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
+            print_metrics(rank, cnt, local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
 
     logging.info('[{}] local_sample_num: {}'.format(rank, local_sample_num))
     print('Metrics: AUC, HIT5, HIT10, nDCG5, nDCG10')
-    print_metrics('*', local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
+    print_metrics('*', '*', local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
 
 if __name__ == "__main__":
     utils.setuplogger()
