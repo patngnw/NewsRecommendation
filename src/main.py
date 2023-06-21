@@ -171,10 +171,7 @@ def test(rank, args):
     if args.enable_gpu:
         torch.cuda.set_device(rank)
 
-    if args.load_ckpt_name is not None:
-        ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
-
-    assert ckpt_path is not None, 'No checkpoint found.'
+    ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
     model, authorid_dict, entity_dict, category_dict, word_dict = load_checkpoint_for_inference(rank, args, ckpt_path)
 
     test_news_vecs, news_index = gen_vecs_from_news_encoder(
@@ -230,29 +227,11 @@ def test(rank, args):
             if label.mean() == 0 or label.mean() == 1:
                 continue
 
-            score = np.dot(candidate_news_vec, user_vec)  # candidate_news_vec: (20, 400); user_vec: (400,); score: (20,)
-            if args.jitao_score_method:
-                score_sorted_idx = np.flip(np.argsort(score))  # Idx of item if we sort it in desc order
-                score_by_candidate_news = list(range(candidate_news_vec.shape[0], 0, -1))
-                for idx in score_sorted_idx[:args.jitao_topn]:
-                    score_by_candidate_news[idx] += args.jitao_boost
-                    
-                score = score_by_candidate_news
-                if False and cnt == 0 and inner_cnt == 1:
-                    print(f"score of 2nd row: {score}")
-                    return
+            score = infer_score(user_vec, candidate_news_vec, args)
+            if cnt == 0 and inner_cnt == 1:
+                print(f"score of 2nd row: {score}")
 
-            auc = roc_auc_score(label, score)
-            hit5 = hit_score(label, score, k=5)
-            hit10 = hit_score(label, score, k=10)
-            ndcg5 = ndcg_score(label, score, k=5)
-            ndcg10 = ndcg_score(label, score, k=10)
-
-            AUC.append(auc)
-            HIT5.append(hit5/100)
-            HIT10.append(hit10/100)
-            nDCG5.append(ndcg5)
-            nDCG10.append(ndcg10)
+            update_metrics(AUC, HIT5, HIT10, nDCG5, nDCG10, label, score)
 
         if cnt % args.log_steps == 0:
             print_metrics(rank, cnt, local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
@@ -268,6 +247,34 @@ def test(rank, args):
     else:
         print('Metrics: AUC, HIT5, HIT10, nDCG5, nDCG10')
         print_metrics('*', '*', local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
+
+
+def update_metrics(AUC, HIT5, HIT10, nDCG5, nDCG10, label, score):
+    auc = roc_auc_score(label, score)
+    hit5 = hit_score(label, score, k=5)
+    hit10 = hit_score(label, score, k=10)
+    ndcg5 = ndcg_score(label, score, k=5)
+    ndcg10 = ndcg_score(label, score, k=10)
+
+    AUC.append(auc)
+    HIT5.append(hit5/100)
+    HIT10.append(hit10/100)
+    nDCG5.append(ndcg5)
+    nDCG10.append(ndcg10)
+
+
+def infer_score(user_vec, candidate_news_vec, args):
+    score = np.dot(candidate_news_vec, user_vec)  # candidate_news_vec: (20, 400); user_vec: (400,); score: (20,)
+    if args.jitao_score_method:
+        score_sorted_idx = np.flip(np.argsort(score))  # Idx of item if we sort it in desc order
+        score_by_candidate_news = list(range(candidate_news_vec.shape[0], 0, -1))
+        for idx in score_sorted_idx[:args.jitao_topn]:
+            score_by_candidate_news[idx] += args.jitao_boost
+                    
+        score = score_by_candidate_news
+        
+    return score
+
 
 def load_checkpoint_for_inference(rank, args, ckpt_path):
     checkpoint = torch.load(ckpt_path, map_location='cpu')
@@ -326,6 +333,7 @@ def gen_vecs_from_news_encoder(news_path, model, rank, category_dict, authorid_d
     news_vecs = np.array(news_vecs)  # shape:  (num_of_news, 400)
     return news_vecs, news_index
 
+
 def test_baseline(args):
     rank = 0
 
@@ -359,18 +367,7 @@ def test_baseline(args):
                 continue
 
             score = list(range(label.shape[0], 0, -1))  # score: (22,)
-
-            auc = roc_auc_score(label, score)
-            hit5 = hit_score(label, score, k=5)
-            hit10 = hit_score(label, score, k=10)
-            ndcg5 = ndcg_score(label, score, k=5)
-            ndcg10 = ndcg_score(label, score, k=10)
-
-            AUC.append(auc)
-            HIT5.append(hit5/100)
-            HIT10.append(hit10/100)
-            nDCG5.append(ndcg5)
-            nDCG10.append(ndcg10)
+            update_metrics(AUC, HIT5, HIT10, nDCG5, nDCG10, label, score)
 
         if cnt % args.log_steps == 0:
             print_metrics(rank, cnt, local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
