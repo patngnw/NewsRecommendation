@@ -335,7 +335,7 @@ def load_checkpoint_for_inference(rank, args, ckpt_path):
 
     dummy_embedding_matrix = np.zeros((len(word_dict) + 1, args.word_embedding_dim))
     module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, dummy_embedding_matrix, len(category_dict), len(authorid_dict), len(entity_dict))
+    model = module.Model(args, dummy_embedding_matrix, num_category=len(category_dict), num_authorid=len(authorid_dict), num_entity=len(entity_dict))
     
     # Note:
     # The embedding matrix is also loaded from the checkpoint
