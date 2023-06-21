@@ -244,6 +244,49 @@ def test(rank, args):
         print_metrics('*', '*', local_sample_num, get_mean([AUC, HIT5, HIT10, nDCG5, nDCG10]))
 
 
+def test_one(rank, args):
+    rank, _ = torch_setup(rank, args)
+
+    ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
+    model, authorid_dict, entity_dict, category_dict, word_dict = load_checkpoint_for_inference(rank, args, ckpt_path)
+
+    test_news_vecs, news_index = gen_vecs_from_news_encoder(
+        os.path.join(args.test_data_dir, 'news.tsv'),
+        model, rank, category_dict, authorid_dict, entity_dict, word_dict, args)
+    
+    logging.info("news scoring num: {}".format(test_news_vecs.shape[0]))
+
+    dataset = DatasetTest(None, news_index, test_news_vecs, args)
+
+    from datetime import datetime
+    line = '598275\t6962008\t2023-05-08 00:00:01\t31096359 31096125 31097543 31097540 31097665 31097417 31097079 31097554 31097055 31097381 31097627 31094645 31078513 31097381 31098942 31098958 31098811 31098748 31098766 31095668 31098280 31099028 31098599 31099159 31099095 31098670 31098033 31098576 31099376 31100193 31098497 31099683 31099262 31100779 31100427 31099711 31102009 31101819 31102598 31102377 31101466 31109635 31109929 31109978 31108756 31111142 31111086 31109556 31111261 31112297 31111526 31108273 31112794 31112968 31111883 31109898 31109157 31113337 31112828 31113654 31114513 31114053 31114251 31113601 31112725 31114746 31115493 31114918 31110366 31112805 31116202 31116653\t31116653-0 31112408-0 31117213-0 31117164-0 31117107-0 31117173-1 31116622-0 31116941-0 31116175-0 31043439-0 31115992-0 31115202-0 31117234-0 31116394-0 31112802-0 31116306-0 31115937-0 31116902-0 31116787-0 31113097-0'
+
+    start = datetime.now()
+    times = 1
+    for i in range(times):
+        log_vecs, log_mask, candidate_news_vecs, _ = dataset.line_mapper(line)
+        
+        # To similate the type and shape as if it's loaded from DataLoader, which is what's expected by the model.
+        log_vecs = torch.from_numpy(log_vecs).unsqueeze(0)
+        log_mask = torch.from_numpy(log_mask).unsqueeze(0)
+        candidate_news_vecs = torch.from_numpy(candidate_news_vecs).unsqueeze(0)
+        
+        if args.enable_gpu:
+            log_vecs = log_vecs.cuda(rank, non_blocking=True)
+            log_mask = log_mask.cuda(rank, non_blocking=True)
+
+        user_vecs = model.user_encoder(log_vecs, log_mask).to(torch.device("cpu")).detach().numpy()
+
+        user_vec = user_vecs[0]
+        candidate_news_vec = candidate_news_vecs[0]
+
+        score_vec = infer_score_vec(user_vec, candidate_news_vec, args)
+        
+    print(f"score: {score_vec}")
+    time_taken = datetime.now() - start
+    print(f'Time take for each sample = {time_taken.seconds / times}s')
+
+
 def update_metrics(label_vec, score_vec, AUC, HIT5, HIT10, nDCG5, nDCG10):
     auc = roc_auc_score(label_vec, score_vec)
     hit5 = hit_score(label_vec, score_vec, k=5)
@@ -434,6 +477,9 @@ if __name__ == "__main__":
             test(None, args)
         else:
             torch.multiprocessing.spawn(test, nprocs=args.nGPU, args=(args,))
+
+    elif args.mode == 'test_one':
+        test_one(None, args)
             
     elif args.mode == 'test_baseline':
         test_baseline(args)
