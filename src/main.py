@@ -189,6 +189,9 @@ def test(rank, args):
     dummy_embedding_matrix = np.zeros((len(word_dict) + 1, args.word_embedding_dim))
     module = importlib.import_module(f'model.{args.model}')
     model = module.Model(args, dummy_embedding_matrix, len(category_dict), len(authorid_dict), len(entity_dict))
+    
+    # Note:
+    # The embedding matrix is also loaded from the checkpoint
     model.load_state_dict(checkpoint['model_state_dict'], strict=False)
     logging.info(f"Model loaded from {ckpt_path}")
 
@@ -198,27 +201,27 @@ def test(rank, args):
     model.eval()
     torch.set_grad_enabled(False)
 
-    # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, authorid ]
+    # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, authorid, entity ]
     # news_index = {}  # Dict: key=news_id, value=idx
     news, news_index = read_news(os.path.join(args.test_data_dir, 'news.tsv'), args, mode='test')
     
-    # news = {}  # Dict: key='news_id, e.g. N1235', value=[ list_of_tokens, cat, authorid ]
-    # category_dict = {}  # Dict: key=cat_name, value=idx
-    # authorid_dict = {}  # Dict: key=authorid, value=idx
+    # Note:
+    # All the *_dict lookups were read from the saved model checkpoint 
     news_title, news_category, news_authorid, news_entity = get_doc_input(
         news, news_index, category_dict, authorid_dict, entity_dict, word_dict, args)
     news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid, news_entity] if x is not None], axis=-1)
     
-    news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 1 + 1) (e.g. )
+    news_dataset = NewsDataset(news_combined)  # news_combined: (num_news, max_num_tokens + 3)
     news_dataloader = DataLoader(news_dataset,
                                  batch_size=args.batch_size,
                                  num_workers=4)
 
     test_news_vecs = []
     with torch.no_grad():
-        for input_ids in tqdm(news_dataloader):
+        for input_ids in tqdm(news_dataloader):  # news_dataloader loads directly from news_combined
             if args.enable_gpu:
                 input_ids = input_ids.cuda(rank)
+            # input_ids: shape = (128, 22)    
             candidate_news_vec = model.news_encoder(input_ids)
             candidate_news_vec = candidate_news_vec.to(torch.device("cpu")).detach().numpy()
             test_news_vecs.extend(candidate_news_vec)  # news_vec: (128, 400)
@@ -238,7 +241,7 @@ def test(rank, args):
     data_file_path = get_test_behavior_path(rank, args)
     logging.info(f'Behavior file: {data_file_path}')
 
-    def collate_fn(tuple_list):
+    def collate_fn(tuple_list):  # len(tuple_list) = batch_size
         log_vecs = torch.FloatTensor(np.array([x[0] for x in tuple_list]))
         log_mask = torch.FloatTensor(np.array([x[1] for x in tuple_list]))
         news_vecs = [x[2] for x in tuple_list]
@@ -256,10 +259,10 @@ def test(rank, args):
 
     local_sample_num = 0
     
-    # log_vecs: user feature based on clicked doc history
+    # log_vecs: (batch_size, 50, 400), user feature based on clicked doc history
     # log_mask: log_vecs are padded; log_mask tells which items are padded (0) or not (1)
-    # candidate_news_vecs: vectors (from news_encoder) of all candidate news (from that sample row)
-    # labels: whether the candidate news is clicked or not
+    # candidate_news_vecs: len=batch_size; vectors (from news_encoder) of all candidate news (from that sample row)
+    # labels:len=batch_size; each item is a list and contain the label (0/1) of each candidate news
     for cnt, (log_vecs, log_mask, candidate_news_vecs, labels) in enumerate(dataloader):
         local_sample_num += log_vecs.shape[0]
 
@@ -269,7 +272,7 @@ def test(rank, args):
 
         user_vecs = model.user_encoder(log_vecs, log_mask).to(torch.device("cpu")).detach().numpy()
 
-        for user_vec, candidate_news_vec, label in zip(user_vecs, candidate_news_vecs, labels):
+        for inner_cnt, user_vec, candidate_news_vec, label in zip(range(len(user_vecs)), user_vecs, candidate_news_vecs, labels):
             if label.mean() == 0 or label.mean() == 1:
                 continue
 
@@ -281,6 +284,9 @@ def test(rank, args):
                     score_by_candidate_news[idx] += args.jitao_boost
                     
                 score = score_by_candidate_news
+                if False and cnt == 0 and inner_cnt == 1:
+                    print(f"score of 2nd row: {score}")
+                    return
 
             auc = roc_auc_score(label, score)
             hit5 = hit_score(label, score, k=5)
