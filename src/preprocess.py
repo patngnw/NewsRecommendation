@@ -90,3 +90,13 @@ def get_doc_input(news, news_index, category_dict, authorid_dict, entity_dict, w
             news_entity[doc_index, 0] = entity_dict.get(entity, 0)
 
     return news_title, news_category, news_authorid, news_entity
+
+
+def get_news_input_matrix(args, news, news_index, category_dict, authorid_dict, word_dict, entity_dict):
+    news_title, news_category, news_authorid, news_entity = get_doc_input(
+        news, news_index, category_dict, authorid_dict, entity_dict, word_dict, args)
+    if args.model.startswith('NAML'):
+        news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid, news_entity] if x is not None], axis=-1)
+    else:
+        news_combined = np.concatenate([x for x in [news_title] if x is not None], axis=-1)
+    return news_combined

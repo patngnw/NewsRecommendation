@@ -12,10 +12,12 @@ from torch.utils.data import DataLoader
 import importlib
 import subprocess
 from metrics import roc_auc_score, ndcg_score, hit_score
+import pytorch_lightning as pl
+import pickle
 
 import utils
 from parameters import parse_args
-from preprocess import read_news, get_doc_input
+from preprocess import read_news, get_doc_input, get_news_input_matrix
 from prepare_data import prepare_training_data, prepare_testing_data, generate_bpemb_embeddings
 import discuss_utils
 from dataset import DatasetTrain, DatasetTest, NewsDataset
@@ -49,7 +51,53 @@ def save_chkpt(model, ckpt_path, is_distributed, category_dict, authorid_dict, e
     torch.save(ckpt_dict, ckpt_path)
 
 
+from pytorch_lightning.callbacks import ModelCheckpoint
+
 def train(rank, args):
+    if rank is None:
+        rank = 0
+        
+    news, news_index, category_dict, authorid_dict, word_dict, entity_dict = read_news(
+    os.path.join(args.train_data_dir, 'news.tsv'), args, mode='train')
+
+    news_combined = get_news_input_matrix(args, news, news_index, category_dict, authorid_dict, word_dict, entity_dict)
+
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=args.model_dir,
+        filename='discuss-{epoch:02d}'
+    )
+
+    module = importlib.import_module(f'model.{args.model}')
+    data_module = module.TrainDataModule(
+        args=args,
+        rank=rank,
+        news_index=news_index,
+        news_combined=news_combined
+    )
+    
+    trainer = pl.Trainer(max_epochs=args.epochs,
+                         callbacks=[checkpoint_callback])
+    model = module.Model(args=args,
+                         num_category=len(category_dict), 
+                         num_authorid=len(authorid_dict), 
+                         num_entity=len(entity_dict),
+                         word_dict=word_dict)
+    
+    trainer.fit(model, datamodule=data_module)
+    
+    extra_state = dict(
+            category_dict=category_dict,
+            authorid_dict=authorid_dict,
+            entity_dict=entity_dict,
+            word_dict=word_dict
+        )
+    with open(os.path.join(args.model_dir, 'extra_state.pkl'), 'wb') as f:
+        pickle.dump(extra_state, f)
+        
+    logging.info(f'Model saved to {checkpoint_callback.best_model_path}')
+
+
+def train_org(rank, args):
     rank, is_distributed = torch_setup(rank, args)
 
     news, news_index, category_dict, authorid_dict, word_dict, entity_dict = read_news(
@@ -72,7 +120,7 @@ def train(rank, args):
             logging.info(f'Missing rate: {(len(word_dict) - len(have_word)) / len(word_dict)}')
 
     module = importlib.import_module(f'model.{args.model}')
-    model = module.Model(args, embedding_matrix, num_category=len(category_dict), num_authorid=len(authorid_dict), num_entity=len(entity_dict))
+    model = module.Model(args, embedding_matrix, num_category=len(category_dict), num_authorid=len(authorid_dict), num_entity=len(entity_dict), rank=rank)
 
     if args.load_ckpt_name is not None:
         ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
@@ -134,15 +182,6 @@ def train(rank, args):
             save_chkpt(model, ckpt_path, is_distributed, category_dict, authorid_dict, entity_dict, word_dict)
             logging.info(f"Model saved to {ckpt_path}.")
 
-def get_news_input_matrix(args, news, news_index, category_dict, authorid_dict, word_dict, entity_dict):
-    news_title, news_category, news_authorid, news_entity = get_doc_input(
-        news, news_index, category_dict, authorid_dict, entity_dict, word_dict, args)
-    if args.model == 'NAML':
-        news_combined = np.concatenate([x for x in [news_title, news_category, news_authorid, news_entity] if x is not None], axis=-1)
-    else:
-        news_combined = np.concatenate([x for x in [news_title] if x is not None], axis=-1)
-    return news_combined
-
 
 def torch_setup(rank, args):
     if rank is None:
@@ -170,7 +209,43 @@ def get_test_behavior_path(rank, args):
         
     return data_file_path
 
+
 def test(rank, args):
+    if rank is None:
+        rank = 0
+        
+    with open(os.path.join(args.model_dir, 'extra_state.pkl'), 'rb') as f:
+        extra_state = pickle.load(f)
+        
+    category_dict = extra_state['category_dict']
+    authorid_dict = extra_state['authorid_dict']
+    entity_dict = extra_state['entity_dict']
+    word_dict = extra_state['word_dict']
+
+    ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
+    
+    module = importlib.import_module(f'model.{args.model}')
+    model = module.Model.load_from_checkpoint(ckpt_path, args=args,
+                                              num_category=len(category_dict), 
+                                              num_authorid=len(authorid_dict),
+                                              num_entity=len(entity_dict), 
+                                              word_dict=word_dict)
+    
+    data_module = module.TestDataModule(
+        args=args,
+        model=model,
+        rank=rank,
+        category_dict=category_dict,
+        authorid_dict=authorid_dict,
+        entity_dict=entity_dict,
+        word_dict=word_dict
+    )
+    
+    trainer = pl.Trainer(max_epochs=args.epochs)
+    trainer.test(model, datamodule=data_module)
+
+
+def test_org(rank, args):
     rank, is_distributed = torch_setup(rank, args)
 
     ckpt_path = utils.get_checkpoint(args.model_dir, args.load_ckpt_name)
