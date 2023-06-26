@@ -40,7 +40,7 @@ def parse_args():
     parser.add_argument("--filter_num", type=int, default=3)
     parser.add_argument("--log_steps", type=int, default=100)
 
-    parser.add_argument("--model", type=str, default=None, choices=['NAML', 'NRMS'])
+    parser.add_argument("--model", type=str, default=None, choices=['NAML', 'NAMLv1', 'NRMS'])
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--lr", type=float, default=0.0001)
 

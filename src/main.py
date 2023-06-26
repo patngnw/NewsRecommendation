@@ -527,7 +527,11 @@ if __name__ == "__main__":
         logging.info(f'{total_sample_num} training samples, {total_sample_num // args.batch_size // args.nGPU} batches in total.')
 
         if args.nGPU == 1:
-            train(None, args)
+            if args.model == 'NAMLv1':
+                train_org(None, args)
+            else:
+                train(None, args)
+
         else:
             torch.multiprocessing.spawn(train, nprocs=args.nGPU, args=(args,))
 
@@ -554,7 +558,10 @@ if __name__ == "__main__":
         logging.info(f'{total_sample_num} testing samples in total.')
 
         if args.nGPU == 1:
-            test(None, args)
+            if args.model == 'NAMLv1':
+                test_org(None, args)
+            else:
+                test(None, args)
         else:
             torch.multiprocessing.spawn(test, nprocs=args.nGPU, args=(args,))
 
