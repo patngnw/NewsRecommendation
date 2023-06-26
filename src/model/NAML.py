@@ -132,7 +132,7 @@ class TrainDataModule(pl.LightningDataModule):
         self.rank = rank
         self.news_index = news_index
         self.news_combined = news_combined
-        
+
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         args = self.args
         data_file_path = os.path.join(args.train_data_dir, f'behaviors_np{args.npratio}_{self.rank}.tsv.gz')
@@ -168,8 +168,8 @@ class TestDataModule(pl.LightningDataModule):
         news_vecs = []
         with torch.no_grad():
             for input_ids in tqdm(news_dataloader):  # news_dataloader loads directly from news_combined
-                #if args.enable_gpu:
-                #    input_ids = input_ids.cuda(rank)
+                if args.enable_gpu:
+                    input_ids = input_ids.cuda(rank)
                 # input_ids: shape = (128, 22)    
                 candidate_news_vec = model.news_encoder(input_ids)
                 candidate_news_vec = candidate_news_vec.to(torch.device("cpu")).detach().numpy()
@@ -244,8 +244,8 @@ class Model(pl.LightningModule):
         self.nDCG5 = []
         self.nDCG10 = []
 
-        
-        
+
+
     def configure_optimizers(self):
             return torch.optim.Adam(self.parameters(), lr=self.args.lr)
 
@@ -316,9 +316,9 @@ class Model(pl.LightningModule):
 
             self.update_metrics(label_vec, score_vec)
 
-        self.log("avg_AUC", np.array(self.AUC).mean())
-        self.log("avg_HIT5", np.array(self.HIT5).mean())
-        self.log("avg_HIT10", np.array(self.HIT10).mean())
-        self.log("avg_nDCG5", np.array(self.nDCG5).mean())
-        self.log("avg_nDCG10", np.array(self.nDCG10).mean())
+        self.log("avg_AUC", np.array(self.AUC).mean()*100)
+        self.log("avg_HIT05", np.array(self.HIT5).mean()*100)
+        self.log("avg_HIT10", np.array(self.HIT10).mean()*100)
+        self.log("avg_nDCG05", np.array(self.nDCG5).mean()*100)
+        self.log("avg_nDCG10", np.array(self.nDCG10).mean()*100)
 
